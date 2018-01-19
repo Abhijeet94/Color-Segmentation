@@ -11,7 +11,7 @@ from collections import namedtuple
 
 DATA_FOLDER = '2018Proj1_train'
 ROI_FOLDER = os.path.join(DATA_FOLDER, 'roi_data')
-COLOR_LIST = ['red_barrel']
+COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel']
 
 #######################################################################################################################################
 
@@ -107,12 +107,12 @@ def calMean(m):
 def calCovariance(m):
 	return np.cov(m)
 
-def showImage(img):
-	cv2.imshow('Image',img)
+def showImage(img, imageName='Image'):
+	cv2.imshow(imageName,img)
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
 
-def showMaskedPart(img, mask):
+def showMaskedPart(img, mask, imageName='Image'):
 	res = np.zeros(img.shape, dtype=np.uint8)
 	firstChannel = img[:, :, 0]
 	secondChannel = img[:, :, 1]
@@ -126,7 +126,7 @@ def showMaskedPart(img, mask):
 	res[:, :, 1] = secondChannel
 	res[:, :, 2] = thirdChannel
 
-	showImage(res)
+	showImage(res, imageName)
 
 def getROIPixels(img, mask):
 	res = np.zeros((np.sum(mask), 3), dtype=np.uint8)
@@ -212,10 +212,11 @@ def gaussianPredict(model, test):
 					if red_barrel_probability > threshold:
 						res.itemset((row, col), True)
 			
-			showMaskedPart(img, res)
+			showMaskedPart(img, res, file)
 			# break
 	else:
-		threshold = 0
+		# threshold = 1e-07 #for RGB
+		threshold = 1e-06 #for Y_CR_CB
 		for file in test:
 			img = cv2.imread(os.path.join(DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
@@ -238,8 +239,7 @@ def gaussianPredict(model, test):
 					if red_barrel_probability > max_other_probability and red_barrel_probability > threshold:
 						res.itemset((row, col), True)
 			
-			showMaskedPart(img, res)
-			break
+			showMaskedPart(img, res, file)
 
 
 #######################################################################################################################################
