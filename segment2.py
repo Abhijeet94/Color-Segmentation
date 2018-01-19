@@ -113,32 +113,30 @@ def showImage(img):
 	cv2.destroyAllWindows()
 
 def showMaskedPart(img, mask):
-	rows, cols, channels = img.shape
 	res = np.zeros(img.shape, dtype=np.uint8)
-	for row in xrange(rows):
-		for col in xrange(cols):
-			if mask.item(row, col) == True:
-				res[row, col, 0] = img.item(row, col, 0)
-				res[row, col, 1] = img.item(row, col, 1)
-				res[row, col, 2] = img.item(row, col, 2)
-			else:
-				res[row, col, 0] = 0
-				res[row, col, 1] = 0
-				res[row, col, 2] = 0
+	firstChannel = img[:, :, 0]
+	secondChannel = img[:, :, 1]
+	thirdChannel = img[:, :, 2]
+
+	firstChannel[~mask] = 0 
+	secondChannel[~mask] = 0
+	thirdChannel[~mask] = 0
+
+	res[:, :, 0] = firstChannel
+	res[:, :, 1] = secondChannel
+	res[:, :, 2] = thirdChannel
+
 	showImage(res)
 
 def getROIPixels(img, mask):
-	rows, cols, channels = img.shape
-	res = []
-	count = 0
-	for row in xrange(rows):
-		for col in xrange(cols):
-			if mask.item(row, col) == True:
-				res.append(img.item(row, col, 0))
-				res.append(img.item(row, col, 1))
-				res.append(img.item(row, col, 2))
-				count = count + 1
-	res = np.asarray(res).reshape(count, 3)
+	res = np.zeros((np.sum(mask), 3), dtype=np.uint8)
+	firstChannel = img[:, :, 0]
+	secondChannel = img[:, :, 1]
+	thirdChannel = img[:, :, 2]
+
+	res[:, 0] = firstChannel[mask]
+	res[:, 1] = secondChannel[mask]
+	res[:, 2] = thirdChannel[mask]
 	return res
 
 def getMaskMatchScore(groundtruth, predicted):
@@ -162,20 +160,20 @@ def getMaskMatchScore(groundtruth, predicted):
 	f_measure = 2 * precision * recall / (precision + recall)
 	return f_measure
 
-def prob_x_cl(x, mean, covariance):
+def prob_x_cl(x, mean, covariance, covarianceInverse):
 	constant = 1.0 / ((((2 * math.pi) ** 3) * np.linalg.det(covariance)) ** (1/2.0))
 
-	exp1 = np.matmul(np.transpose(x - mean), np.linalg.inv(covariance))
+	exp1 = np.matmul(np.transpose(x - mean), covarianceInverse)
 	exp2 = np.matmul(exp1, (x - mean))
 	exponent = -0.5 * exp2
 	return constant * math.exp(exponent)
 
-GaussianMLEParams = namedtuple('GaussianMLEParams', ['color', 'mean', 'cov'])
+GaussianMLEParams = namedtuple('GaussianMLEParams', ['color', 'mean', 'cov', 'covInverse'])
 
 def gaussianMLE(training):
-	roi = [None] * len(COLOR_LIST)
 	mean = [None] * len(COLOR_LIST)
 	covariance = [None] * len(COLOR_LIST)
+	covarianceInverse = [None] * len(COLOR_LIST)
 
 	for idx, color in enumerate(COLOR_LIST):
 		roiPixels = np.empty((0,3), dtype=np.uint8)
@@ -188,8 +186,9 @@ def gaussianMLE(training):
 		if roiPixels.shape[0] != 0:
 			mean[idx] = calMean(roiPixels)
 			covariance[idx] = calCovariance(roiPixels.T)
+			covarianceInverse[idx] = np.linalg.inv(covariance[idx])
 
-	model = GaussianMLEParams(color=COLOR_LIST, mean=mean, cov=covariance)
+	model = GaussianMLEParams(color=COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)
 	return model
 
 def gaussianPredict(model, test):
@@ -207,7 +206,7 @@ def gaussianPredict(model, test):
 			for row in xrange(rows):
 				for col in xrange(cols):
 					x = np.asarray([img.item(row, col, 0), img.item(row, col, 1), img.item(row, col, 2)])
-					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0])
+					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
 					# print red_barrel_probability
 
 					if red_barrel_probability > threshold:
@@ -228,11 +227,11 @@ def gaussianPredict(model, test):
 			for row in xrange(rows):
 				for col in xrange(cols):
 					x = np.asarray([img.item(row, col, 0), img.item(row, col, 1), img.item(row, col, 2)])
-					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0])
+					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
 
 					max_other_probability = 0
 					for c in range(1, len(model.color)):
-						this_color_probability = prob_x_cl(x, model.mean[c], model.cov[c])
+						this_color_probability = prob_x_cl(x, model.mean[c], model.cov[c], model.covInverse[c])
 						if this_color_probability > max_other_probability:
 							max_other_probability = this_color_probability
 
