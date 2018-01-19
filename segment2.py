@@ -141,9 +141,33 @@ def getROIPixels(img, mask):
 	res = np.asarray(res).reshape(count, 3)
 	return res
 
+def getMaskMatchScore(groundtruth, predicted):
+	rows, cols = groundtruth.shape
+	if rows != predicted.shape[0] or cols != predicted.shape[1]:
+		return None
+
+	tp = 0; fp = 0; tn = 0; fn = 0;
+	for row in rows:
+		for col in cols:
+			if groundtruth.item(row, col) == True and predicted.item(row, col) == True:
+				tp = tp + 1
+			if groundtruth.item(row, col) == False and predicted.item(row, col) == True:
+				fp = fp + 1
+			if groundtruth.item(row, col) == False and predicted.item(row, col) == False:
+				tn = tn + 1
+			if groundtruth.item(row, col) == True and predicted.item(row, col) == False:
+				fn = fn + 1
+	precision = tp / (tp + fp + 0.0)
+	recall = tp / (tp + fn + 0.0)
+	f_measure = 2 * precision * recall / (precision + recall)
+	return f_measure
+
 def prob_x_cl(x, mean, covariance):
 	constant = 1.0 / ((((2 * math.pi) ** 3) * np.linalg.det(covariance)) ** (1/2.0))
-	exponent = -0.5 * np.transpose(x - mean) * np.linalg.inv(covariance) * (x - mean)
+
+	exp1 = np.matmul(np.transpose(x - mean), np.linalg.inv(covariance))
+	exp2 = np.matmul(exp1, (x - mean))
+	exponent = -0.5 * exp2
 	return constant * math.exp(exponent)
 
 GaussianMLEParams = namedtuple('GaussianMLEParams', ['color', 'mean', 'cov'])
@@ -157,7 +181,7 @@ def gaussianMLE(training):
 		roiPixels = np.empty((0,3), dtype=np.uint8)
 		for file in training:
 			img = cv2.imread(os.path.join(DATA_FOLDER, file))
-			# img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 			mask = getImageROIMask(file, color)
 			roiPixelsInFile = getROIPixels(img, mask)
 			roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
@@ -170,14 +194,54 @@ def gaussianMLE(training):
 
 def gaussianPredict(model, test):
 	if len(model.color) == 1:
+		# threshold = 1e-07 #for RGB
+		threshold = 1e-05 #for Y_CR_CB
 		for file in test:
 			img = cv2.imread(os.path.join(DATA_FOLDER, file))
+			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 			rows, cols, channels = img.shape
+
+			imgSize = np.shape(img)
+			res = np.zeros(imgSize[0:2], dtype=bool)
+
 			for row in xrange(rows):
 				for col in xrange(cols):
 					x = np.asarray([img.item(row, col, 0), img.item(row, col, 1), img.item(row, col, 2)])
-					print prob_x_cl(x, model.mean[0], model.cov[0])
+					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0])
+					# print red_barrel_probability
+
+					if red_barrel_probability > threshold:
+						res.itemset((row, col), True)
+			
+			showMaskedPart(img, res)
+			# break
+	else:
+		threshold = 0
+		for file in test:
+			img = cv2.imread(os.path.join(DATA_FOLDER, file))
+			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+			rows, cols, channels = img.shape
+
+			imgSize = np.shape(img)
+			res = np.zeros(imgSize[0:2], dtype=bool)
+
+			for row in xrange(rows):
+				for col in xrange(cols):
+					x = np.asarray([img.item(row, col, 0), img.item(row, col, 1), img.item(row, col, 2)])
+					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0])
+
+					max_other_probability = 0
+					for c in range(1, len(model.color)):
+						this_color_probability = prob_x_cl(x, model.mean[c], model.cov[c])
+						if this_color_probability > max_other_probability:
+							max_other_probability = this_color_probability
+
+					if red_barrel_probability > max_other_probability and red_barrel_probability > threshold:
+						res.itemset((row, col), True)
+			
+			showMaskedPart(img, res)
 			break
+
 
 #######################################################################################################################################
 
