@@ -217,21 +217,18 @@ def gaussianPredictHelperManyGaussians(x, model):
 	else:
 		return False
 
-def gaussianPredict(model, test):
+def gaussianPredict(model, file):
 	if len(model.color) == 1:
-		for file in test:
-			img = cv2.imread(os.path.join(DATA_FOLDER, file))
-			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			res = np.apply_along_axis(gaussianPredictHelperSingleGaussian, 2, img, model)
-			showMaskedPart(img, res, file)
-			# break
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+		res = np.apply_along_axis(gaussianPredictHelperSingleGaussian, 2, img, model)
+		showMaskedPart(img, res, file)
 	else:
-		for file in test:
-			img = cv2.imread(os.path.join(DATA_FOLDER, file))
-			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			res = np.apply_along_axis(gaussianPredictHelperManyGaussians, 2, img, model)
-			showMaskedPart(img, res, file)
-
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+		res = np.apply_along_axis(gaussianPredictHelperManyGaussians, 2, img, model)
+		showMaskedPart(img, res, file)
+	return res
 
 #######################################################################################################################################
 
@@ -252,7 +249,9 @@ def crossValidatedAlgo(algo, predict):
 
 	training, test = getTrainingTestSplit(fileList)
 	model = algo(training)
-	testResults = predict(model, test)
+
+	for file in test:
+		testResults = predict(model, file)
 
 def myAlgorithm(img):
 	cv2.imshow('image',img)
