@@ -191,54 +191,45 @@ def gaussianMLE(training):
 	model = GaussianMLEParams(color=COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)
 	return model
 
+def gaussianPredictHelperSingleGaussian(x, model):
+	# threshold = 1e-07 #for RGB
+	threshold = 1e-05 #for Y_CR_CB
+	red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
+	if red_barrel_probability > threshold:
+		return True
+	else:
+		return False
+
+def gaussianPredictHelperManyGaussians(x, model):
+	# threshold = 1e-07 #for RGB
+	threshold = 0#1e-06 #for Y_CR_CB
+
+	red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
+
+	max_other_probability = 0
+	for c in range(1, len(model.color)):
+		this_color_probability = prob_x_cl(x, model.mean[c], model.cov[c], model.covInverse[c])
+		if this_color_probability > max_other_probability:
+			max_other_probability = this_color_probability
+
+	if red_barrel_probability > max_other_probability and red_barrel_probability > threshold:
+		return True
+	else:
+		return False
+
 def gaussianPredict(model, test):
 	if len(model.color) == 1:
-		# threshold = 1e-07 #for RGB
-		threshold = 1e-05 #for Y_CR_CB
 		for file in test:
 			img = cv2.imread(os.path.join(DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			rows, cols, channels = img.shape
-
-			imgSize = np.shape(img)
-			res = np.zeros(imgSize[0:2], dtype=bool)
-
-			for row in xrange(rows):
-				for col in xrange(cols):
-					x = np.asarray([img.item(row, col, 0), img.item(row, col, 1), img.item(row, col, 2)])
-					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
-					# print red_barrel_probability
-
-					if red_barrel_probability > threshold:
-						res.itemset((row, col), True)
-			
+			res = np.apply_along_axis(gaussianPredictHelperSingleGaussian, 2, img, model)
 			showMaskedPart(img, res, file)
 			# break
 	else:
-		# threshold = 1e-07 #for RGB
-		threshold = 1e-06 #for Y_CR_CB
 		for file in test:
 			img = cv2.imread(os.path.join(DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			rows, cols, channels = img.shape
-
-			imgSize = np.shape(img)
-			res = np.zeros(imgSize[0:2], dtype=bool)
-
-			for row in xrange(rows):
-				for col in xrange(cols):
-					x = np.asarray([img.item(row, col, 0), img.item(row, col, 1), img.item(row, col, 2)])
-					red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
-
-					max_other_probability = 0
-					for c in range(1, len(model.color)):
-						this_color_probability = prob_x_cl(x, model.mean[c], model.cov[c], model.covInverse[c])
-						if this_color_probability > max_other_probability:
-							max_other_probability = this_color_probability
-
-					if red_barrel_probability > max_other_probability and red_barrel_probability > threshold:
-						res.itemset((row, col), True)
-			
+			res = np.apply_along_axis(gaussianPredictHelperManyGaussians, 2, img, model)
 			showMaskedPart(img, res, file)
 
 
