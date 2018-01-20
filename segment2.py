@@ -11,7 +11,7 @@ from collections import namedtuple
 
 DATA_FOLDER = '2018Proj1_train'
 ROI_FOLDER = os.path.join(DATA_FOLDER, 'roi_data')
-COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel']
+COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark']
 
 #######################################################################################################################################
 
