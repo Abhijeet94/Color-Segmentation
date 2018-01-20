@@ -8,10 +8,12 @@ import Tkinter
 import tkMessageBox
 import math
 from collections import namedtuple
+from skimage import data, util
+from skimage.measure import label, regionprops
 
 DATA_FOLDER = '2018Proj1_train'
 ROI_FOLDER = os.path.join(DATA_FOLDER, 'roi_data')
-COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark']
+COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark', 'green']
 
 #######################################################################################################################################
 
@@ -112,11 +114,12 @@ def showImage(img, imageName='Image'):
 	cv2.waitKey(0)
 	cv2.destroyAllWindows()
 
-def showMaskedPart(img, mask, imageName='Image'):
-	res = np.zeros(img.shape, dtype=np.uint8)
-	firstChannel = img[:, :, 0]
-	secondChannel = img[:, :, 1]
-	thirdChannel = img[:, :, 2]
+def getMaskedpart(img, mask):
+	image = np.copy(img)
+	res = np.zeros(image.shape, dtype=np.uint8)
+	firstChannel = image[:, :, 0]
+	secondChannel = image[:, :, 1]
+	thirdChannel = image[:, :, 2]
 
 	firstChannel[~mask] = 0 
 	secondChannel[~mask] = 0
@@ -126,7 +129,10 @@ def showMaskedPart(img, mask, imageName='Image'):
 	res[:, :, 1] = secondChannel
 	res[:, :, 2] = thirdChannel
 
-	showImage(res, imageName)
+	return res
+
+def showMaskedPart(img, mask, imageName='Image'):
+	showImage(getMaskedpart(img, mask), imageName)
 
 def getROIPixels(img, mask):
 	res = np.zeros((np.sum(mask), 3), dtype=np.uint8)
@@ -222,13 +228,55 @@ def gaussianPredict(model, file):
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 		res = np.apply_along_axis(gaussianPredictHelperSingleGaussian, 2, img, model)
-		showMaskedPart(img, res, file)
 	else:
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 		res = np.apply_along_axis(gaussianPredictHelperManyGaussians, 2, img, model)
-		showMaskedPart(img, res, file)
 	return res
+
+def showBoundingBoxes(img, mask, suppressShow = False):
+	label_img = label(mask, connectivity=mask.ndim)
+	props = regionprops(label_img)
+
+	for prop in props:
+		x1, y1, x2, y2 = prop.bbox
+		cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+
+	if not suppressShow:
+		showImage(img)
+	return img
+
+def showBestBoundingBox(img, mask, suppressShow = False):
+	label_img = label(mask, connectivity=mask.ndim)
+	props = regionprops(label_img)
+
+	analysis = [(prop.filled_area, prop.extent, i) for i, prop in enumerate(props)]
+
+	totalSumOfArea = sum([a[0] for a in analysis])
+	mostOfData = 0.95 * totalSumOfArea
+	sortedByArea = sorted(analysis, key=lambda x: x[0], reverse=True)
+
+	indexTillMostData = 0
+	sumTillNow = 0
+	for i in xrange(len(sortedByArea)):
+		sumTillNow = sumTillNow + sortedByArea[i][0]
+		if sumTillNow >= mostOfData:
+			indexTillMostData = i
+			break
+
+	goodBboxData = sortedByArea[0:indexTillMostData + 1]
+	sortedByExtent = sorted(goodBboxData, key=lambda x: x[1], reverse=True)
+
+	bestBboxIndex = sortedByExtent[0][2]
+
+	print props[bestBboxIndex].centroid
+
+	x1, y1, x2, y2 = props[bestBboxIndex].bbox
+	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+
+	if not suppressShow:
+		showImage(img)
+	return img
 
 #######################################################################################################################################
 
@@ -240,18 +288,42 @@ def getTrainingTestSplit(fileList):
 	training, test = fileList[:numTraining], fileList[numTraining:]
 	return training, test
 
-def crossValidatedAlgo(algo, predict):
-	folder = DATA_FOLDER
+def getAllFilesInFolder(folder):
 	fileList = []
 	for imageName in os.listdir(folder):
 		if os.path.isfile(os.path.join(folder, imageName)):
 			fileList.append(imageName)
+	return fileList
 
+def crossValidatedAlgo(algo, predict):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
 	training, test = getTrainingTestSplit(fileList)
 	model = algo(training)
 
 	for file in test:
-		testResults = predict(model, file)
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		testResultMask = predict(model, file)
+		showMaskedPart(img, testResultMask, file)
+		showBoundingBoxes(img, testResultMask)
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		showBestBoundingBox(img, testResultMask)
+
+def trainAllTestAll(algo, predict):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	model = algo(fileList)
+
+	OUT_FOLDER = 'outputBbox'
+	if not os.path.exists(OUT_FOLDER):
+		os.makedirs(OUT_FOLDER)
+
+	for file in fileList:
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		testResultMask = predict(model, file)
+		# showMaskedPart(img, testResultMask, file)
+		showBoundingBoxes(img, testResultMask, True)
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = showBestBoundingBox(img, testResultMask, True)
+		cv2.imwrite(os.path.join(OUT_FOLDER, os.path.basename(file)), img)
 
 def myAlgorithm(img):
 	cv2.imshow('image',img)
@@ -276,4 +348,4 @@ def test():
 #######################################################################################################################################
 
 if __name__ == "__main__":
-    crossValidatedAlgo(gaussianMLE, gaussianPredict)
+    trainAllTestAll(gaussianMLE, gaussianPredict)
