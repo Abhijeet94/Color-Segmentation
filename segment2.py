@@ -145,6 +145,52 @@ def getROIPixels(img, mask):
 	res[:, 2] = thirdChannel[mask]
 	return res
 
+def getBoundingBoxes(img, mask):
+	label_img = label(mask, connectivity=mask.ndim)
+	props = regionprops(label_img)
+
+	for prop in props:
+		x1, y1, x2, y2 = prop.bbox
+		cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+
+	return img
+
+def showBoundingBoxes(img, mask):
+	showImage(getBoundingBoxes(img, mask))
+
+def getBestBoundingBox(img, mask):
+	label_img = label(mask, connectivity=mask.ndim)
+	props = regionprops(label_img)
+
+	analysis = [(prop.filled_area, prop.extent, i) for i, prop in enumerate(props)]
+
+	totalSumOfArea = sum([a[0] for a in analysis])
+	mostOfData = 0.90 * totalSumOfArea
+	sortedByArea = sorted(analysis, key=lambda x: x[0], reverse=True)
+
+	indexTillMostData = 0
+	sumTillNow = 0
+	for i in xrange(len(sortedByArea)):
+		sumTillNow = sumTillNow + sortedByArea[i][0]
+		if sumTillNow >= mostOfData:
+			indexTillMostData = i
+			break
+
+	goodBboxData = sortedByArea[0:indexTillMostData + 1]
+	sortedByExtent = sorted(goodBboxData, key=lambda x: x[1], reverse=True)
+
+	bestBboxIndex = sortedByExtent[0][2]
+
+	print props[bestBboxIndex].centroid
+
+	x1, y1, x2, y2 = props[bestBboxIndex].bbox
+	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+
+	return img
+
+def showBestBoundingBox(img, mask):
+	showImage(getBestBoundingBox(img, mask))
+
 def getMaskMatchScore(groundtruth, predicted):
 	rows, cols = groundtruth.shape
 	if rows != predicted.shape[0] or cols != predicted.shape[1]:
@@ -166,7 +212,9 @@ def getMaskMatchScore(groundtruth, predicted):
 	f_measure = 2 * precision * recall / (precision + recall)
 	return f_measure
 
-def prob_x_cl(x, mean, covariance, covarianceInverse):
+#######################################################################################################################################
+
+def prob_x_cl_gaussian(x, mean, covariance, covarianceInverse):
 	constant = 1.0 / ((((2 * math.pi) ** 3) * np.linalg.det(covariance)) ** (1/2.0))
 
 	exp1 = np.matmul(np.transpose(x - mean), covarianceInverse)
@@ -200,7 +248,7 @@ def gaussianMLE(training):
 def gaussianPredictHelperSingleGaussian(x, model):
 	# threshold = 1e-07 #for RGB
 	threshold = 1e-05 #for Y_CR_CB
-	red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
+	red_barrel_probability = prob_x_cl_gaussian(x, model.mean[0], model.cov[0], model.covInverse[0])
 	if red_barrel_probability > threshold:
 		return True
 	else:
@@ -210,11 +258,11 @@ def gaussianPredictHelperManyGaussians(x, model):
 	# threshold = 1e-07 #for RGB
 	threshold = 0#1e-06 #for Y_CR_CB
 
-	red_barrel_probability = prob_x_cl(x, model.mean[0], model.cov[0], model.covInverse[0])
+	red_barrel_probability = prob_x_cl_gaussian(x, model.mean[0], model.cov[0], model.covInverse[0])
 
 	max_other_probability = 0
 	for c in range(1, len(model.color)):
-		this_color_probability = prob_x_cl(x, model.mean[c], model.cov[c], model.covInverse[c])
+		this_color_probability = prob_x_cl_gaussian(x, model.mean[c], model.cov[c], model.covInverse[c])
 		if this_color_probability > max_other_probability:
 			max_other_probability = this_color_probability
 
@@ -234,49 +282,29 @@ def gaussianPredict(model, file):
 		res = np.apply_along_axis(gaussianPredictHelperManyGaussians, 2, img, model)
 	return res
 
-def showBoundingBoxes(img, mask, suppressShow = False):
-	label_img = label(mask, connectivity=mask.ndim)
-	props = regionprops(label_img)
+def gaussianPredictLookupHelper(x, model):
+	return model.item(x[0], x[1], x[2])
 
-	for prop in props:
-		x1, y1, x2, y2 = prop.bbox
-		cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+def gaussianPredictLookup(model, file):
+	img = cv2.imread(os.path.join(DATA_FOLDER, file))
+	img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+	res = np.apply_along_axis(gaussianPredictLookupHelper, 2, img, model)
+	return res
 
-	if not suppressShow:
-		showImage(img)
-	return img
+def getGaussianLookupTable(model):
+	res = np.zeros((256, 256, 256), dtype=bool)
+	x, y, z = res.shape
 
-def showBestBoundingBox(img, mask, suppressShow = False):
-	label_img = label(mask, connectivity=mask.ndim)
-	props = regionprops(label_img)
+	for i in xrange(x):
+		print i
+		for j in xrange(y):
+			for k in xrange(z):
+				if len(model.color) == 1:
+					res.itemset((i, j, k), gaussianPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
+				else:
+					res.itemset((i, j, k), gaussianPredictHelperManyGaussians(np.asarray([i, j, k]), model))
 
-	analysis = [(prop.filled_area, prop.extent, i) for i, prop in enumerate(props)]
-
-	totalSumOfArea = sum([a[0] for a in analysis])
-	mostOfData = 0.95 * totalSumOfArea
-	sortedByArea = sorted(analysis, key=lambda x: x[0], reverse=True)
-
-	indexTillMostData = 0
-	sumTillNow = 0
-	for i in xrange(len(sortedByArea)):
-		sumTillNow = sumTillNow + sortedByArea[i][0]
-		if sumTillNow >= mostOfData:
-			indexTillMostData = i
-			break
-
-	goodBboxData = sortedByArea[0:indexTillMostData + 1]
-	sortedByExtent = sorted(goodBboxData, key=lambda x: x[1], reverse=True)
-
-	bestBboxIndex = sortedByExtent[0][2]
-
-	print props[bestBboxIndex].centroid
-
-	x1, y1, x2, y2 = props[bestBboxIndex].bbox
-	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
-
-	if not suppressShow:
-		showImage(img)
-	return img
+	return res
 
 #######################################################################################################################################
 
@@ -320,10 +348,41 @@ def trainAllTestAll(algo, predict):
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))
 		testResultMask = predict(model, file)
 		# showMaskedPart(img, testResultMask, file)
-		showBoundingBoxes(img, testResultMask, True)
+		# showBoundingBoxes(img, testResultMask)
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))
-		img = showBestBoundingBox(img, testResultMask, True)
+		img = getBestBoundingBox(img, testResultMask)
 		cv2.imwrite(os.path.join(OUT_FOLDER, os.path.basename(file)), img)
+
+def trainAllTestAllLookup(lookupFileName, predictLookup):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	OUT_FOLDER = 'outputBboxLookup'
+	if not os.path.exists(OUT_FOLDER):
+		os.makedirs(OUT_FOLDER)
+
+	LOOKUP_FOLDER = 'lookupTable'
+
+	with open(os.path.join(LOOKUP_FOLDER, lookupFileName), 'rb') as input:
+		model = pickle.load(input)
+
+	for file in fileList:
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		testResultMask = predictLookup(model, file)
+		# showMaskedPart(img, testResultMask, file)
+		# showBoundingBoxes(img, testResultMask)
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = getBestBoundingBox(img, testResultMask)
+		cv2.imwrite(os.path.join(OUT_FOLDER, os.path.basename(file)), img)
+
+def saveLookupTable(algo, lookupTableFunc, filename):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	model = algo(fileList)
+
+	LOOKUP_FOLDER = 'lookupTable'
+	if not os.path.exists(LOOKUP_FOLDER):
+		os.makedirs(LOOKUP_FOLDER)
+
+	with open(os.path.join(LOOKUP_FOLDER, filename), 'wb') as output:
+		pickle.dump(lookupTableFunc(model), output, pickle.HIGHEST_PROTOCOL)
 
 def myAlgorithm(img):
 	cv2.imshow('image',img)
@@ -348,4 +407,11 @@ def test():
 #######################################################################################################################################
 
 if __name__ == "__main__":
-    trainAllTestAll(gaussianMLE, gaussianPredict)
+	# crossValidatedAlgo(gaussianMLE, gaussianPredict)
+    # trainAllTestAll(gaussianMLE, gaussianPredict)
+
+    # saveLookupTable(gaussianMLE, getGaussianLookupTable, 'GaussianMLE')
+    trainAllTestAllLookup('GaussianMLE', gaussianPredictLookup)
+
+# Better bounding box statistics - account for the tilt, merging bounding boxes behind objects etc
+# Take prior (as opposed to uniform at present) for different colors... 
