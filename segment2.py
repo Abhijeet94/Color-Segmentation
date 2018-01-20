@@ -10,10 +10,11 @@ import math
 from collections import namedtuple
 from skimage import data, util
 from skimage.measure import label, regionprops
+from mpl_toolkits.mplot3d import Axes3D
 
 DATA_FOLDER = '2018Proj1_train'
 ROI_FOLDER = os.path.join(DATA_FOLDER, 'roi_data')
-COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark', 'green']
+COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark', 'green', 'bluish']
 
 #######################################################################################################################################
 
@@ -384,6 +385,20 @@ def saveLookupTable(algo, lookupTableFunc, filename):
 	with open(os.path.join(LOOKUP_FOLDER, filename), 'wb') as output:
 		pickle.dump(lookupTableFunc(model), output, pickle.HIGHEST_PROTOCOL)
 
+def plotLookupTable(lookupFileName):
+	LOOKUP_FOLDER = 'lookupTable'
+
+	with open(os.path.join(LOOKUP_FOLDER, lookupFileName), 'rb') as input:
+		model = pickle.load(input)
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+
+	pos = np.where(model==1)
+	ax.plot_wireframe(pos[0], pos[1], pos[2], color='black')
+	# ax.scatter(pos[0], pos[1], pos[2], c='red')
+	plt.show()
+
 def myAlgorithm(img):
 	cv2.imshow('image',img)
 	return 0,0,0
@@ -411,7 +426,8 @@ if __name__ == "__main__":
     # trainAllTestAll(gaussianMLE, gaussianPredict)
 
     # saveLookupTable(gaussianMLE, getGaussianLookupTable, 'GaussianMLE')
-    trainAllTestAllLookup('GaussianMLE', gaussianPredictLookup)
+    plotLookupTable('GaussianMLE')
+    # trainAllTestAllLookup('GaussianMLE', gaussianPredictLookup)
 
 # Better bounding box statistics - account for the tilt, merging bounding boxes behind objects etc
 # Take prior (as opposed to uniform at present) for different colors... 
