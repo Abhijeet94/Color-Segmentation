@@ -313,13 +313,90 @@ def getGaussianLookupTable(model):
 
 GmmMLEParams = namedtuple('GmmMLEParams', ['color', 'mean', 'cov', 'covInverse', 'mixtureProbabilities'])
 
-def prob_x_cl_gmm(x, mean, covariance, covarianceInverse):
-	constant = 1.0 / ((((2 * math.pi) ** 3) * np.linalg.det(covariance)) ** (1/2.0))
+def prob_x_cl_gmm(x, mean, covariance, covarianceInverse, mixtureProbabilities):
+	result = 0
+	for k in range(len(mean)):
+		result = result + mixtureProbabilities[k] * prob_x_cl_gaussian(x, np.transpose(mean[k]), covariance[k], covarianceInverse[k])
+	return result
+
+def prob_x_cl_gmm_gaussian(x, mean, covariance, covarianceInverse):
+	# constant = (np.linalg.det(covarianceInverse) ** (1/2.0)) / ((((2 * math.pi) ** 3)) ** (1/2.0))
+	constant1 = (-3.0/2) * math.log(2 * math.pi)
+
+	detSigmaInv = np.linalg.det(covarianceInverse)
+	if detSigmaInv > 0:
+		constant2 = (1.0/2) * math.log(detSigmaInv)
+	else:
+		constant2 = 0
 
 	exp1 = np.matmul(np.transpose(x - mean), covarianceInverse)
 	exp2 = np.matmul(exp1, (x - mean))
 	exponent = -0.5 * exp2
-	return constant * math.exp(exponent)
+
+	result = (exponent + constant2 + constant1)
+	return result # returns log of N
+
+def logSumExp(N, pi):
+	summedArray = [(N[g] + math.log(pi[g])) for g in range(len(N))]
+	maxElement = max(summedArray)
+
+	result = maxElement + math.log(sum([math.exp(summedArray[g] - maxElement) for g in range(len(N))]))
+	return result
+
+def gmmPredictHelperSingleGaussian(x, model):
+	pass
+
+def gmmPredictHelperManyGaussians(x, model):
+	# threshold = 1e-07 #for RGB
+	threshold = 0#1e-06 #for Y_CR_CB
+
+	red_barrel_probability = prob_x_cl_gmm(x, model.mean[0], model.cov[0], model.covInverse[0], model.mixtureProbabilities[0])
+
+	max_other_probability = 0
+	for c in range(1, len(model.color)):
+		this_color_probability = prob_x_cl_gmm(x, model.mean[c], model.cov[c], model.covInverse[c], model.mixtureProbabilities[c])
+		if this_color_probability > max_other_probability:
+			max_other_probability = this_color_probability
+
+	if red_barrel_probability > max_other_probability and red_barrel_probability > threshold:
+		return True
+	else:
+		return False
+
+def gmmPredict(model, file):
+	if len(model.color) == 1:
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+		res = np.apply_along_axis(gmmPredictHelperSingleGaussian, 2, img, model)
+	else:
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+		res = np.apply_along_axis(gmmPredictHelperManyGaussians, 2, img, model)
+	return res
+
+def gmmPredictLookupHelper(x, model):
+	return model.item(x[0], x[1], x[2])
+
+def gmmPredictLookup(model, file):
+	img = cv2.imread(os.path.join(DATA_FOLDER, file))
+	img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+	res = np.apply_along_axis(gmmPredictLookupHelper, 2, img, model)
+	return res
+
+def getGmmLookupTable(model):
+	res = np.zeros((256, 256, 256), dtype=bool)
+	x, y, z = res.shape
+
+	for i in xrange(x):
+		print i
+		for j in xrange(y):
+			for k in xrange(z):
+				if len(model.color) == 1:
+					res.itemset((i, j, k), gmmPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
+				else:
+					res.itemset((i, j, k), gmmPredictHelperManyGaussians(np.asarray([i, j, k]), model))
+
+	return res
 
 def initializeEMparameters(k):
 	mu =  [255 * np.random.random_sample((1, 3)) for _ in range(k)]
@@ -328,8 +405,8 @@ def initializeEMparameters(k):
 	return mu, sigma, mixProb
 
 def EM(X):
-	numTry = 10
-	k = 4 # Number of mixtures
+	numTry = 2
+	k = 3 # Number of mixtures
 	n = X.shape[0]
 	logLikelihood = 0; maxLikelihood = float("-inf")
 	best_mu, best_sigma, best_mixProb = initializeEMparameters(k)
@@ -346,13 +423,14 @@ def EM(X):
 			# Pg 438-439 PRML, Bishop
 			# E-step = evaluate membership probabilities using current parameter values
 			for i in xrange(membership.shape[0]):
-				N = [prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
-				denominator = sum(mixProb[g] * N[g] for g in range(len(N)))
+				N_log = [prob_x_cl_gmm_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+				denominatorLog = logSumExp(N_log, mixProb) # sum(mixProb[g] * N[g] for g in range(len(N)))
 
-				if denominator == 0:
-					denominator = 1
 
-				membership[i, :] = (1.0/denominator) * np.multiply(np.asarray(mixProb), np.asarray(N))
+
+				# membership[i, :] = (1.0/denominator) * np.multiply(np.asarray(mixProb), np.exp(np.asarray(N)))
+				for j in range(k):
+					membership[i, j] = math.exp(math.log(mixProb[j]) + N_log[j] - denominatorLog)
 				# print N
 				# print membership
 			# E-step done
@@ -363,10 +441,7 @@ def EM(X):
 			Nk = np.sum(membership, axis=0)
 			mixProb = (1.0/n) * Nk
 			print mixProb
-			# print membership
-			print Nk
 
-			print mu
 			for j in xrange(k):
 				# mu[j] = (1.0/Nk[j]) * np.average(X, axis=0, weights=membership[:, j])
 				cumSum = np.zeros((1, 3))
@@ -393,11 +468,11 @@ def EM(X):
 
 			# Evaluate the log-likelihood
 			logLikelihood = 0
-			for i in xrange(X.shape[0]):
-				N = [prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
-				probSum = sum(mixProb[g] * N[g] for g in range(len(N)))
-				print probSum
-				logLikelihood = logLikelihood + math.log(probSum)
+			for i in xrange(n):
+				N = [prob_x_cl_gmm_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+				probSum = logSumExp(N, mixProb) #sum(mixProb[g] * N[g] for g in range(len(N)))
+				# print probSum
+				logLikelihood = logLikelihood + (probSum)
 			# Evaluate done
 			#################################################################################
 
@@ -405,9 +480,9 @@ def EM(X):
 			print logLikelihood
 
 			# Check for convergence; Break if converged
-			if(abs(previousLL - logLikelihood) < 0.01 and numSaturation > 2):
+			if(abs(previousLL - logLikelihood) < 1 and numSaturation > 1):
 				break
-			elif(abs(previousLL - logLikelihood) < 0.01 and numSaturation <= 2):
+			elif(abs(previousLL - logLikelihood) < 1 and numSaturation <= 1):
 				numSaturation = numSaturation + 1
 			previousLL = logLikelihood
 			# Check done
@@ -477,7 +552,7 @@ def trainAllTestAll(algo, predict):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 	model = algo(fileList)
 
-	OUT_FOLDER = 'outputBbox'
+	OUT_FOLDER = 'outputBbox_experiment_with_EM'
 	if not os.path.exists(OUT_FOLDER):
 		os.makedirs(OUT_FOLDER)
 
@@ -492,7 +567,7 @@ def trainAllTestAll(algo, predict):
 
 def trainAllTestAllLookup(lookupFileName, predictLookup):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
-	OUT_FOLDER = 'outputBboxLookup'
+	OUT_FOLDER = 'outputBboxLookup_experiment_with_EM'
 	if not os.path.exists(OUT_FOLDER):
 		os.makedirs(OUT_FOLDER)
 
@@ -567,7 +642,9 @@ if __name__ == "__main__":
 
     #######
 
-    crossValidatedAlgo(gmmMLE, gaussianPredict)
-
+    # crossValidatedAlgo(gmmMLE, gaussianPredict)
+    # trainAllTestAll(gmmMLE, gmmPredict)
+    saveLookupTable(gmmMLE, getGmmLookupTable, 'GmmMLE')
+    trainAllTestAllLookup('GmmMLE', gmmPredictLookup)
 # Better bounding box statistics - account for the tilt, merging bounding boxes behind objects etc
 # Take prior (as opposed to uniform at present) for different colors... 
