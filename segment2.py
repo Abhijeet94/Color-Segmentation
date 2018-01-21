@@ -216,12 +216,13 @@ def getMaskMatchScore(groundtruth, predicted):
 #######################################################################################################################################
 
 def prob_x_cl_gaussian(x, mean, covariance, covarianceInverse):
-	constant = 1.0 / ((((2 * math.pi) ** 3) * np.linalg.det(covariance)) ** (1/2.0))
+	constant = (np.linalg.det(covarianceInverse) ** (1/2.0)) / ((((2 * math.pi) ** 3)) ** (1/2.0))
 
 	exp1 = np.matmul(np.transpose(x - mean), covarianceInverse)
 	exp2 = np.matmul(exp1, (x - mean))
 	exponent = -0.5 * exp2
-	return constant * math.exp(exponent)
+	result = constant * math.exp(exponent)
+	return result
 
 GaussianMLEParams = namedtuple('GaussianMLEParams', ['color', 'mean', 'cov', 'covInverse'])
 
@@ -322,7 +323,7 @@ def prob_x_cl_gmm(x, mean, covariance, covarianceInverse):
 
 def initializeEMparameters(k):
 	mu =  [255 * np.random.random_sample((1, 3)) for _ in range(k)]
-	sigma = [np.identity(3)] * k
+	sigma = [70 * np.identity(3)] * k
 	mixProb = [(1.0/k)] * k
 	return mu, sigma, mixProb
 
@@ -335,7 +336,7 @@ def EM(X):
 
 	for _ in xrange(numTry):
 		mu, sigma, mixProb = initializeEMparameters(k)
-		sigmaInverse = [np.linalg.inv(s) for s in sigma]
+		sigmaInverse = [np.linalg.pinv(s) for s in sigma]
 		membership = np.zeros((n, k))
 		previousLL = 0
 		numSaturation = 0
@@ -345,37 +346,62 @@ def EM(X):
 			# Pg 438-439 PRML, Bishop
 			# E-step = evaluate membership probabilities using current parameter values
 			for i in xrange(membership.shape[0]):
-
-				N = [prob_x_cl_gaussian(X[i, :], m, s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+				N = [prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
 				denominator = sum(mixProb[g] * N[g] for g in range(len(N)))
 
-				membership[i, :] = (1.0/denominator) * np.dot(np.asarray(mixProb), np.asarray(N))
-				# for j in membership.shape[1]:
-				# 	numerator = mixProb[j] * N[j]
-				# 	membership.itemset((i, j), numerator/denominator)
+				if denominator == 0:
+					denominator = 1
+
+				membership[i, :] = (1.0/denominator) * np.multiply(np.asarray(mixProb), np.asarray(N))
+				# print N
+				# print membership
 			# E-step done
+			print 'E-step done'
+			#################################################################################
 
 			# M-step = Re-estimate the parameters using current membership probabilities
 			Nk = np.sum(membership, axis=0)
 			mixProb = (1.0/n) * Nk
+			print mixProb
+			# print membership
+			print Nk
 
+			print mu
 			for j in xrange(k):
-				mu[j] = (1.0/Nk[j]) * np.average(X, axis=0, weights=membership[:, j])
+				# mu[j] = (1.0/Nk[j]) * np.average(X, axis=0, weights=membership[:, j])
+				cumSum = np.zeros((1, 3))
+				for i in range(n):
+					cumSum = cumSum + membership[i, j] * X[i, :]
+				mu[j] = (1.0/Nk[j]) * cumSum
+			print mu
+			print 'mu calculated'
 
 			for j in xrange(k):
 				shiftedX = np.subtract(X, mu[j])
-				sigma[j] = (1.0/Nk[j]) * np.average(np.matmul(shiftedX, np.transpose(shiftedX)), axis=0, weights=membership[:, j])
-			sigmaInverse = [np.linalg.inv(s) for s in sigma]
+				# XX = np.matmul(np.transpose(shiftedX), shiftedX)
+				# sigma[j] = (1.0/Nk[j]) * np.average(XX, axis=0, weights=membership[:, j])
+				cumSum = np.zeros((3, 3))
+				for i in range(n):
+					prod = np.matmul(np.transpose(shiftedX[i, :]), shiftedX[i, :])
+					cumSum = cumSum + membership[i, j] * prod
+				sigma[j] = (1.0/Nk[j]) * cumSum
+				# sigma[j] = (1.0/Nk[j]) * sum([membership[i, j] * np.matmul(np.transpose(shiftedX[i, :]), shiftedX[i, :]) for i in range(n)])
+			print sigma
+			sigmaInverse = [np.linalg.pinv(s) for s in sigma]
 			# M-step done
+			#################################################################################
 
 			# Evaluate the log-likelihood
 			logLikelihood = 0
 			for i in xrange(X.shape[0]):
-				N = [prob_x_cl_gaussian(X[i, :], m, s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+				N = [prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
 				probSum = sum(mixProb[g] * N[g] for g in range(len(N)))
+				print probSum
 				logLikelihood = logLikelihood + math.log(probSum)
 			# Evaluate done
+			#################################################################################
 
+			print 'Log-likelihood: ',
 			print logLikelihood
 
 			# Check for convergence; Break if converged
@@ -392,7 +418,7 @@ def EM(X):
 			best_sigma = sigma
 			best_mixProb = mixProb
 
-	return best_mu, best_sigma, best_mixProb, [np.linalg.inv(s) for s in best_sigma]
+	return best_mu, best_sigma, best_mixProb, [np.linalg.pinv(s) for s in best_sigma]
 
 def gmmMLE(training):
 	mean = [None] * len(COLOR_LIST)
