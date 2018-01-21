@@ -411,7 +411,8 @@ def EM(X):
 	logLikelihood = 0; maxLikelihood = float("-inf")
 	best_mu, best_sigma, best_mixProb = initializeEMparameters(k)
 
-	for _ in xrange(numTry):
+	for trial in xrange(numTry):
+		print 'Trial: ' + str(trial)
 		mu, sigma, mixProb = initializeEMparameters(k)
 		sigmaInverse = [np.linalg.pinv(s) for s in sigma]
 		membership = np.zeros((n, k))
@@ -440,6 +441,7 @@ def EM(X):
 			# M-step = Re-estimate the parameters using current membership probabilities
 			Nk = np.sum(membership, axis=0)
 			mixProb = (1.0/n) * Nk
+			print 'Mixture Probabilities: ',
 			print mixProb
 
 			for j in xrange(k):
@@ -448,8 +450,8 @@ def EM(X):
 				for i in range(n):
 					cumSum = cumSum + membership[i, j] * X[i, :]
 				mu[j] = (1.0/Nk[j]) * cumSum
+			print 'Mu calculated: ',
 			print mu
-			print 'mu calculated'
 
 			for j in xrange(k):
 				shiftedX = np.subtract(X, mu[j])
@@ -461,7 +463,7 @@ def EM(X):
 					cumSum = cumSum + membership[i, j] * prod
 				sigma[j] = (1.0/Nk[j]) * cumSum
 				# sigma[j] = (1.0/Nk[j]) * sum([membership[i, j] * np.matmul(np.transpose(shiftedX[i, :]), shiftedX[i, :]) for i in range(n)])
-			print sigma
+			# print sigma
 			sigmaInverse = [np.linalg.pinv(s) for s in sigma]
 			# M-step done
 			#################################################################################
@@ -480,9 +482,9 @@ def EM(X):
 			print logLikelihood
 
 			# Check for convergence; Break if converged
-			if(abs(previousLL - logLikelihood) < 1 and numSaturation > 1):
+			if(abs(previousLL - logLikelihood) < 1 and numSaturation >= 1):
 				break
-			elif(abs(previousLL - logLikelihood) < 1 and numSaturation <= 1):
+			elif(abs(previousLL - logLikelihood) < 1 and numSaturation < 1):
 				numSaturation = numSaturation + 1
 			previousLL = logLikelihood
 			# Check done
@@ -510,6 +512,7 @@ def gmmMLE(training):
 			roiPixelsInFile = getROIPixels(img, mask)
 			roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
 		if roiPixels.shape[0] != 0:
+			print 'Color: ' + str(color) 
 			mu, sigma, mixProb, sigmaInverse = EM(roiPixels)
 			mean[idx] = mu
 			covariance[idx] = sigma
