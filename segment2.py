@@ -309,6 +309,116 @@ def getGaussianLookupTable(model):
 
 #######################################################################################################################################
 
+
+GmmMLEParams = namedtuple('GmmMLEParams', ['color', 'mean', 'cov', 'covInverse', 'mixtureProbabilities'])
+
+def prob_x_cl_gmm(x, mean, covariance, covarianceInverse):
+	constant = 1.0 / ((((2 * math.pi) ** 3) * np.linalg.det(covariance)) ** (1/2.0))
+
+	exp1 = np.matmul(np.transpose(x - mean), covarianceInverse)
+	exp2 = np.matmul(exp1, (x - mean))
+	exponent = -0.5 * exp2
+	return constant * math.exp(exponent)
+
+def initializeEMparameters(k):
+	mu =  [255 * np.random.random_sample((1, 3)) for _ in range(k)]
+	sigma = [np.identity(3)] * k
+	mixProb = [(1.0/k)] * k
+	return mu, sigma, mixProb
+
+def EM(X):
+	numTry = 10
+	k = 4 # Number of mixtures
+	n = X.shape[0]
+	logLikelihood = 0; maxLikelihood = float("-inf")
+	best_mu, best_sigma, best_mixProb = initializeEMparameters(k)
+
+	for _ in xrange(numTry):
+		mu, sigma, mixProb = initializeEMparameters(k)
+		sigmaInverse = [np.linalg.inv(s) for s in sigma]
+		membership = np.zeros((n, k))
+		previousLL = 0
+		numSaturation = 0
+
+		while True:
+
+			# Pg 438-439 PRML, Bishop
+			# E-step = evaluate membership probabilities using current parameter values
+			for i in xrange(membership.shape[0]):
+
+				N = [prob_x_cl_gaussian(X[i, :], m, s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+				denominator = sum(mixProb[g] * N[g] for g in range(len(N)))
+
+				membership[i, :] = (1.0/denominator) * np.dot(np.asarray(mixProb), np.asarray(N))
+				# for j in membership.shape[1]:
+				# 	numerator = mixProb[j] * N[j]
+				# 	membership.itemset((i, j), numerator/denominator)
+			# E-step done
+
+			# M-step = Re-estimate the parameters using current membership probabilities
+			Nk = np.sum(membership, axis=0)
+			mixProb = (1.0/n) * Nk
+
+			for j in xrange(k):
+				mu[j] = (1.0/Nk[j]) * np.average(X, axis=0, weights=membership[:, j])
+
+			for j in xrange(k):
+				shiftedX = np.subtract(X, mu[j])
+				sigma[j] = (1.0/Nk[j]) * np.average(np.matmul(shiftedX, np.transpose(shiftedX)), axis=0, weights=membership[:, j])
+			sigmaInverse = [np.linalg.inv(s) for s in sigma]
+			# M-step done
+
+			# Evaluate the log-likelihood
+			logLikelihood = 0
+			for i in xrange(X.shape[0]):
+				N = [prob_x_cl_gaussian(X[i, :], m, s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+				probSum = sum(mixProb[g] * N[g] for g in range(len(N)))
+				logLikelihood = logLikelihood + math.log(probSum)
+			# Evaluate done
+
+			print logLikelihood
+
+			# Check for convergence; Break if converged
+			if(abs(previousLL - logLikelihood) < 0.01 and numSaturation > 2):
+				break
+			elif(abs(previousLL - logLikelihood) < 0.01 and numSaturation <= 2):
+				numSaturation = numSaturation + 1
+			previousLL = logLikelihood
+			# Check done
+
+		if(maxLikelihood < logLikelihood):
+			maxLikelihood = logLikelihood
+			best_mu = mu
+			best_sigma = sigma
+			best_mixProb = mixProb
+
+	return best_mu, best_sigma, best_mixProb, [np.linalg.inv(s) for s in best_sigma]
+
+def gmmMLE(training):
+	mean = [None] * len(COLOR_LIST)
+	covariance = [None] * len(COLOR_LIST)
+	mixingProbabilites = [None] * len(COLOR_LIST)
+	covarianceInverse = [None] * len(COLOR_LIST)
+
+	for idx, color in enumerate(COLOR_LIST):
+		roiPixels = np.empty((0,3), dtype=np.uint8)
+		for file in training:
+			img = cv2.imread(os.path.join(DATA_FOLDER, file))
+			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+			mask = getImageROIMask(file, color)
+			roiPixelsInFile = getROIPixels(img, mask)
+			roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
+		if roiPixels.shape[0] != 0:
+			mu, sigma, mixProb, sigmaInverse = EM(roiPixels)
+			mean[idx] = mu
+			covariance[idx] = sigma
+			mixingProbabilites[idx] = mixProb
+			covarianceInverse[idx] = sigmaInverse
+
+	model = GmmMLEParams(color=COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse, mixtureProbabilities=mixingProbabilites)
+	return model
+
+#######################################################################################################################################
 def getTrainingTestSplit(fileList):
 	n = len(fileList)
 	numTraining = int(0.8 * n)
@@ -426,8 +536,12 @@ if __name__ == "__main__":
     # trainAllTestAll(gaussianMLE, gaussianPredict)
 
     # saveLookupTable(gaussianMLE, getGaussianLookupTable, 'GaussianMLE')
-    plotLookupTable('GaussianMLE')
+    # plotLookupTable('GaussianMLE')
     # trainAllTestAllLookup('GaussianMLE', gaussianPredictLookup)
+
+    #######
+
+    crossValidatedAlgo(gmmMLE, gaussianPredict)
 
 # Better bounding box statistics - account for the tilt, merging bounding boxes behind objects etc
 # Take prior (as opposed to uniform at present) for different colors... 
