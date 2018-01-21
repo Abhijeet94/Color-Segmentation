@@ -36,7 +36,7 @@ class GmmMLE:
 			result = result + mixtureProbabilities[k] * self.prob_x_cl_gaussian(x, np.transpose(mean[k]), covariance[k], covarianceInverse[k])
 		return result
 
-	def prob_x_cl_gmm_gaussian(self, x, mean, covariance, covarianceInverse):
+	def log_prob_x_cl_gaussian(self, x, mean, covariance, covarianceInverse):
 		# constant = (np.linalg.det(covarianceInverse) ** (1/2.0)) / ((((2 * math.pi) ** 3)) ** (1/2.0))
 		constant1 = (-3.0/2) * math.log(2 * math.pi)
 
@@ -141,7 +141,7 @@ class GmmMLE:
 				# Pg 438-439 PRML, Bishop
 				# E-step = evaluate membership probabilities using current parameter values
 				for i in xrange(membership.shape[0]):
-					N_log = [self.prob_x_cl_gmm_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+					N_log = [self.log_prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
 					denominatorLog = self.logSumExp(N_log, mixProb) # sum(mixProb[g] * N[g] for g in range(len(N)))
 
 
@@ -188,7 +188,7 @@ class GmmMLE:
 				# Evaluate the log-likelihood
 				logLikelihood = 0
 				for i in xrange(n):
-					N = [self.prob_x_cl_gmm_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
+					N = [self.log_prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
 					probSum = self.logSumExp(N, mixProb) #sum(mixProb[g] * N[g] for g in range(len(N)))
 					# print probSum
 					logLikelihood = logLikelihood + (probSum)
