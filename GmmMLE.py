@@ -60,9 +60,6 @@ class GmmMLE:
 		result = maxElement + math.log(sum([math.exp(summedArray[g] - maxElement) for g in range(len(N))]))
 		return result
 
-	def gmmPredictHelperSingleGaussian(self, x, model):
-		pass
-
 	def gmmPredictHelperManyGaussians(self, x, model):
 		# threshold = 1e-07 #for RGB
 		threshold = 0#1e-06 #for Y_CR_CB
@@ -81,14 +78,20 @@ class GmmMLE:
 			return False
 
 	def predict(self, model, file):
-		if len(model.color) == 1:
-			img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
-			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			res = np.apply_along_axis(self.gmmPredictHelperSingleGaussian, 2, img, model)
-		else:
-			img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
-			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			res = np.apply_along_axis(self.gmmPredictHelperManyGaussians, 2, img, model)
+		img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+		# res = np.apply_along_axis(self.gmmPredictHelperManyGaussians, 2, img, model)
+
+		bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
+		for c, color in enumerate(model.color):
+			k = len(model.mean[0])
+			localBigMat = np.zeros((img.shape[0], img.shape[1], k))
+			for j in range(k):
+				localBigMat[:, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(img, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
+			bigMat[:, :, c] = logsumexp(localBigMat, axis=2).reshape(img.shape[0], img.shape[1])
+		res = np.argmax(bigMat, axis = 2)
+		res = res == 0
+
 		return res
 
 	def gmmPredictLookupHelper(self, x, model):
@@ -100,7 +103,7 @@ class GmmMLE:
 		res = np.apply_along_axis(self.gmmPredictLookupHelper, 2, img, model)
 		return res
 
-	def getLookupTable(self, model):
+	def getLookupTableSlow(self, model):
 		res = np.zeros((256, 256, 256), dtype=bool)
 		x, y, z = res.shape
 
@@ -108,10 +111,22 @@ class GmmMLE:
 			print i
 			for j in xrange(y):
 				for k in xrange(z):
-					if len(model.color) == 1:
-						res.itemset((i, j, k), self.gmmPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
-					else:
-						res.itemset((i, j, k), self.gmmPredictHelperManyGaussians(np.asarray([i, j, k]), model))
+					res.itemset((i, j, k), self.gmmPredictHelperManyGaussians(np.asarray([i, j, k]), model))
+
+		return res
+
+	def getLookupTable(self, model):
+		res = np.indices((256, 256, 256))
+
+		bigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], len(model.color)))
+		for c, color in enumerate(model.color):
+			k = len(model.mean[0])
+			localBigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], k))
+			for j in range(k):
+				localBigMat[:, :, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(res, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
+			bigMat[:, :, :, c] = logsumexp(localBigMat, axis=3).reshape(res.shape[0], res.shape[1], res.shape[2])
+		res = np.argmax(bigMat, axis = 3)
+		res = res == 0
 
 		return res
 
@@ -130,7 +145,7 @@ class GmmMLE:
 
 		for trial in xrange(numTry):
 			# print 'Trial: ' + str(trial)
-			while True:
+			while True: # In case something breaks (like singular matrix)
 				try:
 					mu, sigma, mixProb = self.initializeEMparameters(k)
 					sigmaInverse = [np.linalg.pinv(s) for s in sigma]
@@ -138,7 +153,7 @@ class GmmMLE:
 					previousLL = 0
 					numSaturation = 0
 
-					while True:
+					while True: # EM iterations
 
 						for j in range(k):
 							membership[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
@@ -185,14 +200,16 @@ class GmmMLE:
 						# print logLikelihood
 
 						# Check for convergence; Break if converged
-						if(abs(previousLL - logLikelihood) < 0.2 and numSaturation >= 1):
+						if(abs(previousLL - logLikelihood) < 0.4 and numSaturation >= 1):
 							break
-						elif(abs(previousLL - logLikelihood) < 0.2 and numSaturation < 1):
+						elif(abs(previousLL - logLikelihood) < 0.4 and numSaturation < 1):
 							numSaturation = numSaturation + 1
 						previousLL = logLikelihood
 						# Check done
+				except KeyboardInterrupt:
+					exit(0)
 				except:
-					pass
+					print 'Broken instance'
 				else:
 					break
 
