@@ -196,8 +196,8 @@ def getMaskMatchScore(groundtruth, predicted):
 		return None
 
 	tp = 0; fp = 0; tn = 0; fn = 0;
-	for row in rows:
-		for col in cols:
+	for row in range(rows):
+		for col in range(cols):
 			if groundtruth.item(row, col) == True and predicted.item(row, col) == True:
 				tp = tp + 1
 			if groundtruth.item(row, col) == False and predicted.item(row, col) == True:

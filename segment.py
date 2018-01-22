@@ -31,8 +31,8 @@ if __name__ == "__main__":
 
     # trainAllTestAll(g.train, g.predict, DATA_FOLDER, 'outBbox_Gmm_1')
 
-    saveLookupTable(g.train, g.getLookupTable, 'GmmMLE', DATA_FOLDER)
-    trainAllTestAllLookup('GmmMLE', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gmm_1')
+    saveLookupTable(g.train, g.getLookupTable, 'GmmMLE_2', DATA_FOLDER)
+    trainAllTestAllLookup('GmmMLE_2', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gmm_2')
 
     #######################
     #######################

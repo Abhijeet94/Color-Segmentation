@@ -39,13 +39,23 @@ def crossValidatedAlgo(algo, predict, DATA_FOLDER):
 	with open('tempmodel.pkl', 'wb') as output:
 		pickle.dump(model, output, pickle.HIGHEST_PROTOCOL)
 
+	finalScore = 0
 	for file in test:
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))
 		testResultMask = predict(model, file)
+
+		groundTruth = getImageROIMask(file, 'red_barrel', DATA_FOLDER)
+		# print 'F-measure', 
+		score = getMaskMatchScore(groundTruth, testResultMask)
+		# print score
+
+		finalScore = finalScore + score
+
 		showMaskedPart(img, testResultMask, file)
 		showBoundingBoxes(img, testResultMask)
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))
 		showBestBoundingBox(img, testResultMask)
+	print finalScore/len(test)
 
 def trainAllTestAll(algo, predict, DATA_FOLDER, OUT_FOLDER):
 	fileList = getAllFilesInFolder(DATA_FOLDER)

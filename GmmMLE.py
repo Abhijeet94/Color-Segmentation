@@ -51,6 +51,21 @@ class GmmMLE:
 		result = (exponent + constant2 + constant1)
 		return result # returns log of N
 
+	def multivariateNormalLogPdf(self, X, mean, covariance, covarianceInverse):
+		constant1 = (-3.0/2) * math.log(2 * math.pi)
+
+		detSigmaInv = np.linalg.det(covarianceInverse)
+		if detSigmaInv > 0:
+			constant2 = (1.0/2) * math.log(detSigmaInv)
+		else:
+			constant2 = 0
+
+		X = np.subtract(X, mean)
+		exponent = (-0.5) * np.sum(np.multiply(np.matmul(X, covarianceInverse), X), axis = X.ndim - 1)
+
+		result = (exponent + constant2 + constant1)
+		return result
+
 	def logSumExp(self, N, pi):
 		summedArray = [(N[g] + math.log(pi[g])) for g in range(len(N))]
 		maxElement = max(summedArray)
@@ -85,7 +100,8 @@ class GmmMLE:
 			k = len(model.mean[0])
 			localBigMat = np.zeros((img.shape[0], img.shape[1], k))
 			for j in range(k):
-				localBigMat[:, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(img, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
+				# localBigMat[:, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(img, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
+				localBigMat[:, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  self.multivariateNormalLogPdf(img, (model.mean[c])[j], (model.cov[c])[j], (model.covInverse[c])[j])
 			bigMat[:, :, c] = logsumexp(localBigMat, axis=2).reshape(img.shape[0], img.shape[1])
 		res = np.argmax(bigMat, axis = 2)
 		res = res == 0
@@ -122,10 +138,15 @@ class GmmMLE:
 			k = len(model.mean[0])
 			localBigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], k))
 			for j in range(k):
-				localBigMat[:, :, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(res, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
+				# localBigMat[:, :, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(res, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
+				localBigMat[:, :, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  self.multivariateNormalLogPdf(res, (model.mean[c])[j], (model.cov[c])[j], (model.covInverse[c])[j])
 			bigMat[:, :, :, c] = logsumexp(localBigMat, axis=3).reshape(res.shape[0], res.shape[1], res.shape[2])
 		res = np.argmax(bigMat, axis = 3)
 		res = res == 0
+
+		np.set_printoptions(threshold=np.inf)
+		print bigMat[res][0:500]
+		np.set_printoptions(threshold=1000)
 
 		return res
 
@@ -143,7 +164,6 @@ class GmmMLE:
 		best_mu, best_sigma, best_mixProb = self.initializeEMparameters(k)
 
 		for trial in xrange(numTry):
-			# print 'Trial: ' + str(trial)
 			while True: # In case something breaks (like singular matrix)
 				try:
 					mu, sigma, mixProb = self.initializeEMparameters(k)
@@ -155,7 +175,8 @@ class GmmMLE:
 					while True: # EM iterations
 
 						for j in range(k):
-							membership[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
+							# membership[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
+							membership[:, j] = math.log(mixProb[j]) + self.multivariateNormalLogPdf(X, mu[j], sigma[j], sigmaInverse[j])
 						membership = np.exp(membership - logsumexp(membership, axis=1)[:,None])
 						# E-step done
 						#################################################################################
@@ -163,14 +184,10 @@ class GmmMLE:
 						# M-step = Re-estimate the parameters using current membership probabilities
 						Nk = np.sum(membership, axis=0)
 						mixProb = (1.0/n) * Nk
-						# print 'Mixture Probabilities: ',
-						# print mixProb
 
 						for j in xrange(k):
 							cumSum = np.sum(np.multiply(membership[:, j].reshape(n, 1), X), axis=0).reshape(1, 3)
 							mu[j] = (1.0/Nk[j]) * cumSum
-						# print 'Mu calculated: ',
-						# print mu
 
 						for j in xrange(k):
 							shiftedX = np.subtract(X, mu[j])
@@ -190,13 +207,11 @@ class GmmMLE:
 						# Evaluate log-likelihood
 						tempN = np.zeros((n, k))
 						for j in range(k):
-							tempN[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
+							# tempN[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
+							tempN[:, j] = math.log(mixProb[j]) + self.multivariateNormalLogPdf(X, mu[j], sigma[j], sigmaInverse[j])
 						logLikelihood = np.sum(logsumexp(membership, axis=1).reshape(n, 1), axis = 0)
 						# Evaluate done
 						#################################################################################
-
-						# print 'Log-likelihood: ',
-						# print logLikelihood
 
 						# Check for convergence; Break if converged
 						if(abs(previousLL - logLikelihood) < 0.4 and numSaturation >= 1):
@@ -207,8 +222,8 @@ class GmmMLE:
 						# Check done
 				except KeyboardInterrupt:
 					exit(0)
-				except:
-					print 'Broken instance'
+				except Exception, e:
+					print 'Broken instance: ' + str(e)
 				else:
 					break
 
@@ -218,6 +233,7 @@ class GmmMLE:
 				best_sigma = sigma
 				best_mixProb = mixProb
 
+		print best_mu
 		return best_mu, best_sigma, best_mixProb, [np.linalg.pinv(s) for s in best_sigma]
 
 	def train(self, training):
