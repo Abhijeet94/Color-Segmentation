@@ -4,13 +4,12 @@ from roipoly import roipoly
 import pylab as pl
 import matplotlib.pyplot as plt
 import pickle
-import Tkinter
-import tkMessageBox
 import math
 from collections import namedtuple
 from skimage import data, util
 from skimage.measure import label, regionprops
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.stats import multivariate_normal
 from utils import *
 
 class GaussianMLE:
@@ -109,5 +108,4 @@ class GaussianMLE:
 						res.itemset((i, j, k), self.gaussianPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
 					else:
 						res.itemset((i, j, k), self.gaussianPredictHelperManyGaussians(np.asarray([i, j, k]), model))
-
 		return res

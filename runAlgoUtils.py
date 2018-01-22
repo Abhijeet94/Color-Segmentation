@@ -4,8 +4,6 @@ from roipoly import roipoly
 import pylab as pl
 import matplotlib.pyplot as plt
 import pickle
-import Tkinter
-import tkMessageBox
 import math
 from collections import namedtuple
 from skimage import data, util

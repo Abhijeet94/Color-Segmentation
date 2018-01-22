@@ -4,13 +4,13 @@ from roipoly import roipoly
 import pylab as pl
 import matplotlib.pyplot as plt
 import pickle
-import Tkinter
-import tkMessageBox
 import math
 from collections import namedtuple
 from skimage import data, util
 from skimage.measure import label, regionprops
 from mpl_toolkits.mplot3d import Axes3D
+from scipy.stats import multivariate_normal
+from scipy.misc import logsumexp
 from utils import *
 
 class GmmMLE:
@@ -22,8 +22,8 @@ class GmmMLE:
 		self.DATA_FOLDER = dataFolder
 
 	def prob_x_cl_gaussian(self, x, mean, covariance, covarianceInverse):
+		x = x.reshape(3, 1)
 		constant = (np.linalg.det(covarianceInverse) ** (1/2.0)) / ((((2 * math.pi) ** 3)) ** (1/2.0))
-
 		exp1 = np.matmul(np.transpose(x - mean), covarianceInverse)
 		exp2 = np.matmul(exp1, (x - mean))
 		exponent = -0.5 * exp2
@@ -122,89 +122,79 @@ class GmmMLE:
 		return mu, sigma, mixProb
 
 	def EM(self, X):
-		numTry = 2
+		numTry = 1
 		k = 3 # Number of mixtures
 		n = X.shape[0]
 		logLikelihood = 0; maxLikelihood = float("-inf")
 		best_mu, best_sigma, best_mixProb = self.initializeEMparameters(k)
 
 		for trial in xrange(numTry):
-			print 'Trial: ' + str(trial)
-			mu, sigma, mixProb = self.initializeEMparameters(k)
-			sigmaInverse = [np.linalg.pinv(s) for s in sigma]
-			membership = np.zeros((n, k))
-			previousLL = 0
-			numSaturation = 0
-
+			# print 'Trial: ' + str(trial)
 			while True:
+				try:
+					mu, sigma, mixProb = self.initializeEMparameters(k)
+					sigmaInverse = [np.linalg.pinv(s) for s in sigma]
+					membership = np.zeros((n, k))
+					previousLL = 0
+					numSaturation = 0
 
-				# Pg 438-439 PRML, Bishop
-				# E-step = evaluate membership probabilities using current parameter values
-				for i in xrange(membership.shape[0]):
-					N_log = [self.log_prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
-					denominatorLog = self.logSumExp(N_log, mixProb) # sum(mixProb[g] * N[g] for g in range(len(N)))
+					while True:
 
+						for j in range(k):
+							membership[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
+						membership = np.exp(membership - logsumexp(membership, axis=1)[:,None])
+						# E-step done
+						#################################################################################
 
+						# M-step = Re-estimate the parameters using current membership probabilities
+						Nk = np.sum(membership, axis=0)
+						mixProb = (1.0/n) * Nk
+						# print 'Mixture Probabilities: ',
+						# print mixProb
 
-					# membership[i, :] = (1.0/denominator) * np.multiply(np.asarray(mixProb), np.exp(np.asarray(N)))
-					for j in range(k):
-						membership[i, j] = math.exp(math.log(mixProb[j]) + N_log[j] - denominatorLog)
-					# print N
-					# print membership
-				# E-step done
-				print 'E-step done'
-				#################################################################################
+						for j in xrange(k):
+							cumSum = np.sum(np.multiply(membership[:, j].reshape(n, 1), X), axis=0).reshape(1, 3)
+							mu[j] = (1.0/Nk[j]) * cumSum
+						# print 'Mu calculated: ',
+						# print mu
 
-				# M-step = Re-estimate the parameters using current membership probabilities
-				Nk = np.sum(membership, axis=0)
-				mixProb = (1.0/n) * Nk
-				print 'Mixture Probabilities: ',
-				print mixProb
+						for j in xrange(k):
+							shiftedX = np.subtract(X, mu[j])
+							cumSum = np.zeros((3, 3))
+							for it in (range((n/100000) + 1)):
+								start = it * 100000
+								end = min((it+1) * 100000, n)
+								for r in range(3):
+									for t in range(3):
+										prod_r_t = np.multiply(shiftedX[start:end, r], shiftedX[start:end, t])
+										cumSum[r,t] = cumSum[r,t] + np.sum(np.multiply(membership[start:end, j].reshape((end-start), 1), prod_r_t.reshape((end-start), 1)), axis=0)
+							sigma[j] = (1.0/Nk[j]) * cumSum
+						sigmaInverse = [np.linalg.pinv(s) for s in sigma]
+						# M-step done
+						#################################################################################
 
-				for j in xrange(k):
-					# mu[j] = (1.0/Nk[j]) * np.average(X, axis=0, weights=membership[:, j])
-					cumSum = np.zeros((1, 3))
-					for i in range(n):
-						cumSum = cumSum + membership[i, j] * X[i, :]
-					mu[j] = (1.0/Nk[j]) * cumSum
-				print 'Mu calculated: ',
-				print mu
+						# Evaluate log-likelihood
+						tempN = np.zeros((n, k))
+						for j in range(k):
+							tempN[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
+						logLikelihood = np.sum(logsumexp(membership, axis=1).reshape(n, 1), axis = 0)
+						# Evaluate done
+						#################################################################################
 
-				for j in xrange(k):
-					shiftedX = np.subtract(X, mu[j])
-					# XX = np.matmul(np.transpose(shiftedX), shiftedX)
-					# sigma[j] = (1.0/Nk[j]) * np.average(XX, axis=0, weights=membership[:, j])
-					cumSum = np.zeros((3, 3))
-					for i in range(n):
-						prod = np.matmul(np.transpose(shiftedX[i, :]), shiftedX[i, :])
-						cumSum = cumSum + membership[i, j] * prod
-					sigma[j] = (1.0/Nk[j]) * cumSum
-					# sigma[j] = (1.0/Nk[j]) * sum([membership[i, j] * np.matmul(np.transpose(shiftedX[i, :]), shiftedX[i, :]) for i in range(n)])
-				# print sigma
-				sigmaInverse = [np.linalg.pinv(s) for s in sigma]
-				# M-step done
-				#################################################################################
+						# print 'Log-likelihood: ',
+						# print logLikelihood
 
-				# Evaluate the log-likelihood
-				logLikelihood = 0
-				for i in xrange(n):
-					N = [self.log_prob_x_cl_gaussian((X[i, :]).reshape(3, 1), np.transpose(m), s, si) for m, s, si in zip(mu, sigma, sigmaInverse)]
-					probSum = self.logSumExp(N, mixProb) #sum(mixProb[g] * N[g] for g in range(len(N)))
-					# print probSum
-					logLikelihood = logLikelihood + (probSum)
-				# Evaluate done
-				#################################################################################
-
-				print 'Log-likelihood: ',
-				print logLikelihood
-
-				# Check for convergence; Break if converged
-				if(abs(previousLL - logLikelihood) < 1 and numSaturation >= 1):
+						# Check for convergence; Break if converged
+						if(abs(previousLL - logLikelihood) < 0.2 and numSaturation >= 1):
+							break
+						elif(abs(previousLL - logLikelihood) < 0.2 and numSaturation < 1):
+							numSaturation = numSaturation + 1
+						previousLL = logLikelihood
+						# Check done
+				except:
+					pass
+				else:
 					break
-				elif(abs(previousLL - logLikelihood) < 1 and numSaturation < 1):
-					numSaturation = numSaturation + 1
-				previousLL = logLikelihood
-				# Check done
 
 			if(maxLikelihood < logLikelihood):
 				maxLikelihood = logLikelihood
@@ -220,7 +210,7 @@ class GmmMLE:
 		mixingProbabilites = [None] * len(self.COLOR_LIST)
 		covarianceInverse = [None] * len(self.COLOR_LIST)
 
-		for idx, color in enumerate(COLOR_LIST):
+		for idx, color in enumerate(self.COLOR_LIST):
 			roiPixels = np.empty((0,3), dtype=np.uint8)
 			for file in training:
 				img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
@@ -229,7 +219,7 @@ class GmmMLE:
 				roiPixelsInFile = getROIPixels(img, mask)
 				roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
 			if roiPixels.shape[0] != 0:
-				print 'Color: ' + str(color) 
+				print '\nColor: ' + str(color) 
 				mu, sigma, mixProb, sigmaInverse = self.EM(roiPixels)
 				mean[idx] = mu
 				covariance[idx] = sigma
