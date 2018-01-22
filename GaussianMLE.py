@@ -14,8 +14,6 @@ from utils import *
 
 class GaussianMLE:
 
-	GaussianMLEParams = namedtuple('GaussianMLEParams', ['color', 'mean', 'cov', 'covInverse'])
-
 	def __init__(self, colorList, dataFolder):
 		self.COLOR_LIST = colorList
 		self.DATA_FOLDER = dataFolder
@@ -47,7 +45,7 @@ class GaussianMLE:
 				covariance[idx] = calCovariance(roiPixels.T)
 				covarianceInverse[idx] = np.linalg.inv(covariance[idx])
 
-		model = self.GaussianMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)
+		model = GaussianMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)
 		return model
 
 	def gaussianPredictHelperSingleGaussian(self, x, model):

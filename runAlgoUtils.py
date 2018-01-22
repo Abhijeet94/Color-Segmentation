@@ -30,14 +30,14 @@ def crossValidatedAlgo(algo, predict, DATA_FOLDER):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 	training, test = getTrainingTestSplit(fileList)
 
-	# if os.path.isfile('tempmodel.pkl'):
-	# 	with open('tempmodel.pkl', 'rb') as input:
-	# 		model = pickle.load(input)
-	# else:
-	model = algo(training)
+	if os.path.isfile('tempmodel.pkl'):
+		with open('tempmodel.pkl', 'rb') as input:
+			model = pickle.load(input)
+	else:
+		model = algo(training)
 
-	# with open('tempmodel.pkl', 'wb') as output:
-	# 	pickle.dump(model, output, pickle.HIGHEST_PROTOCOL)
+	with open('tempmodel.pkl', 'wb') as output:
+		pickle.dump(model, output, pickle.HIGHEST_PROTOCOL)
 
 	for file in test:
 		img = cv2.imread(os.path.join(DATA_FOLDER, file))

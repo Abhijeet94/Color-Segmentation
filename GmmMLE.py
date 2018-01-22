@@ -15,8 +15,6 @@ from utils import *
 
 class GmmMLE:
 
-	GmmMLEParams = namedtuple('GmmMLEParams', ['color', 'mean', 'cov', 'covInverse', 'mixtureProbabilities'])
-
 	def __init__(self, colorList, dataFolder):
 		self.COLOR_LIST = colorList
 		self.DATA_FOLDER = dataFolder
@@ -116,7 +114,8 @@ class GmmMLE:
 		return res
 
 	def getLookupTable(self, model):
-		res = np.indices((256, 256, 256))
+		res = np.transpose(np.indices((256, 256, 256)), (1, 2, 3, 0))
+		print res.shape
 
 		bigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], len(model.color)))
 		for c, color in enumerate(model.color):
@@ -243,5 +242,5 @@ class GmmMLE:
 				mixingProbabilites[idx] = mixProb
 				covarianceInverse[idx] = sigmaInverse
 
-		model = self.GmmMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse, mixtureProbabilities=mixingProbabilites)
+		model = GmmMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse, mixtureProbabilities=mixingProbabilites)
 		return model

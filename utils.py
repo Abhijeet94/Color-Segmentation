@@ -10,6 +10,10 @@ from skimage import data, util
 from skimage.measure import label, regionprops
 from mpl_toolkits.mplot3d import Axes3D
 
+
+GaussianMLEParams = namedtuple('GaussianMLEParams', ['color', 'mean', 'cov', 'covInverse'])
+GmmMLEParams = namedtuple('GmmMLEParams', ['color', 'mean', 'cov', 'covInverse', 'mixtureProbabilities'])
+
 retry = True
 rois = []
 
