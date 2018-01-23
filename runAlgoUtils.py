@@ -26,18 +26,19 @@ def getAllFilesInFolder(folder):
 			fileList.append(imageName)
 	return fileList
 
-def crossValidatedAlgo(algo, predict, DATA_FOLDER):
+def crossValidatedAlgo(algo, predict, DATA_FOLDER, SAVED_MODEL=None):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 	training, test = getTrainingTestSplit(fileList)
 
-	if os.path.isfile('tempmodel.pkl'):
-		with open('tempmodel.pkl', 'rb') as input:
+	if SAVED_MODEL != None and os.path.isfile(SAVED_MODEL):
+		with open(SAVED_MODEL, 'rb') as input:
 			model = pickle.load(input)
 	else:
 		model = algo(training)
 
-	with open('tempmodel.pkl', 'wb') as output:
-		pickle.dump(model, output, pickle.HIGHEST_PROTOCOL)
+	if SAVED_MODEL != None:
+		with open(SAVED_MODEL, 'wb') as output:
+			pickle.dump(model, output, pickle.HIGHEST_PROTOCOL)
 
 	finalScore = 0
 	for file in test:

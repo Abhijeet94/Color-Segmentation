@@ -66,13 +66,6 @@ class GmmMLE:
 		result = (exponent + constant2 + constant1)
 		return result
 
-	def logSumExp(self, N, pi):
-		summedArray = [(N[g] + math.log(pi[g])) for g in range(len(N))]
-		maxElement = max(summedArray)
-
-		result = maxElement + math.log(sum([math.exp(summedArray[g] - maxElement) for g in range(len(N))]))
-		return result
-
 	def gmmPredictHelperManyGaussians(self, x, model):
 		# threshold = 1e-07 #for RGB
 		threshold = 0#1e-06 #for Y_CR_CB

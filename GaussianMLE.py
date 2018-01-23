@@ -27,26 +27,20 @@ class GaussianMLE:
 		result = constant * math.exp(exponent)
 		return result
 
-	def train(self, training):
-		mean = [None] * len(self.COLOR_LIST)
-		covariance = [None] * len(self.COLOR_LIST)
-		covarianceInverse = [None] * len(self.COLOR_LIST)
+	def multivariateNormalPdf(self, X, mean, covariance, covarianceInverse):
+		constant1 = (-3.0/2) * math.log(2 * math.pi)
 
-		for idx, color in enumerate(self.COLOR_LIST):
-			roiPixels = np.empty((0,3), dtype=np.uint8)
-			for file in training:
-				img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
-				img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-				mask = getImageROIMask(file, color, self.DATA_FOLDER)
-				roiPixelsInFile = getROIPixels(img, mask)
-				roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
-			if roiPixels.shape[0] != 0:
-				mean[idx] = calMean(roiPixels)
-				covariance[idx] = calCovariance(roiPixels.T)
-				covarianceInverse[idx] = np.linalg.inv(covariance[idx])
+		detSigmaInv = np.linalg.det(covarianceInverse)
+		if detSigmaInv > 0:
+			constant2 = (1.0/2) * math.log(detSigmaInv)
+		else:
+			constant2 = 0
 
-		model = GaussianMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)
-		return model
+		X = np.subtract(X, mean)
+		exponent = (-0.5) * np.sum(np.multiply(np.matmul(X, covarianceInverse), X), axis = X.ndim - 1)
+
+		result = (exponent + constant2 + constant1)
+		return result
 
 	def gaussianPredictHelperSingleGaussian(self, x, model):
 		# threshold = 1e-07 #for RGB
@@ -76,13 +70,31 @@ class GaussianMLE:
 
 	def predict(self, model, file):
 		if len(model.color) == 1:
+			# threshold = 1e-07 #for RGB
+			threshold = 1e-05 #for Y_CR_CB
+
 			img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 			res = np.apply_along_axis(self.gaussianPredictHelperSingleGaussian, 2, img, model)
 		else:
+			threshold = -30
 			img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			res = np.apply_along_axis(self.gaussianPredictHelperManyGaussians, 2, img, model)
+			# res = np.apply_along_axis(self.gaussianPredictHelperManyGaussians, 2, img, model)
+
+			bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
+			for c, color in enumerate(model.color):
+				bigMat[:, :, c] = self.multivariateNormalPdf(img, model.mean[c], model.cov[c], model.covInverse[c])
+			res = np.argmax(bigMat, axis = 2)
+			res = res == 0
+
+			# np.set_printoptions(threshold = np.inf)
+			# print bigMat[res][1:500]
+			# np.set_printoptions(threshold = 1000)
+
+			resThreshold = np.amax(bigMat, axis = 2) > threshold
+			res = np.logical_and(res, resThreshold)
+
 		return res
 
 	def gaussianPredictLookupHelper(self, x, model):
@@ -92,18 +104,53 @@ class GaussianMLE:
 		img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 		res = np.apply_along_axis(self.gaussianPredictLookupHelper, 2, img, model)
+		# print 'oioi'
 		return res
 
 	def getLookupTable(self, model):
-		res = np.zeros((256, 256, 256), dtype=bool)
-		x, y, z = res.shape
+		if len(model.color) == 1:
+			res = np.zeros((256, 256, 256), dtype=bool)
+			x, y, z = res.shape
+			for i in xrange(x):
+				print i
+				for j in xrange(y):
+					for k in xrange(z):
+						if len(model.color) == 1:
+							res.itemset((i, j, k), self.gaussianPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
+						# else:
+						# 	res.itemset((i, j, k), self.gaussianPredictHelperManyGaussians(np.asarray([i, j, k]), model))
+		else:
+			threshold = -30
+			res = np.transpose(np.indices((256, 256, 256)), (1, 2, 3, 0))
 
-		for i in xrange(x):
-			print i
-			for j in xrange(y):
-				for k in xrange(z):
-					if len(model.color) == 1:
-						res.itemset((i, j, k), self.gaussianPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
-					else:
-						res.itemset((i, j, k), self.gaussianPredictHelperManyGaussians(np.asarray([i, j, k]), model))
+			bigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], len(model.color)))
+			for c, color in enumerate(model.color):
+				bigMat[:, :, :, c] = self.multivariateNormalPdf(res, model.mean[c], model.cov[c], model.covInverse[c])
+			res = np.argmax(bigMat, axis = 3)
+			res = res == 0
+
+			resThreshold = np.amax(bigMat, axis = 3) > threshold
+			res = np.logical_and(res, resThreshold)
+
 		return res
+
+	def train(self, training):
+		mean = [None] * len(self.COLOR_LIST)
+		covariance = [None] * len(self.COLOR_LIST)
+		covarianceInverse = [None] * len(self.COLOR_LIST)
+
+		for idx, color in enumerate(self.COLOR_LIST):
+			roiPixels = np.empty((0,3), dtype=np.uint8)
+			for file in training:
+				img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+				img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+				mask = getImageROIMask(file, color, self.DATA_FOLDER)
+				roiPixelsInFile = getROIPixels(img, mask)
+				roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
+			if roiPixels.shape[0] != 0:
+				mean[idx] = calMean(roiPixels)
+				covariance[idx] = calCovariance(roiPixels.T)
+				covarianceInverse[idx] = np.linalg.inv(covariance[idx])
+
+		model = GaussianMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)
+		return model

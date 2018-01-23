@@ -24,32 +24,12 @@ COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark', 'green
 
 if __name__ == "__main__":
 
-    # g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
-    g = GmmMLE(COLOR_LIST, DATA_FOLDER)
+    g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
+    # g = GmmMLE(COLOR_LIST, DATA_FOLDER)
 
-    crossValidatedAlgo(g.train, g.predict, DATA_FOLDER)
+    crossValidatedAlgo(g.train, g.predict, DATA_FOLDER, 'tempModelGaussian11.pkl')
 
     # trainAllTestAll(g.train, g.predict, DATA_FOLDER, 'outBbox_Gmm_1')
 
-    # saveLookupTable(g.train, g.getLookupTable, 'GmmMLE_2', DATA_FOLDER)
-    # trainAllTestAllLookup('GmmMLE_2', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gmm_2')
-
-    #######################
-    #######################
-	# crossValidatedAlgo(gaussianMLE, gaussianPredict)
-    # trainAllTestAll(gaussianMLE, gaussianPredict)
-
-    # saveLookupTable(gaussianMLE, getGaussianLookupTable, 'GaussianMLE')
-    # plotLookupTable('GaussianMLE')
-    # trainAllTestAllLookup('GaussianMLE', gaussianPredictLookup)
-
-    #######
-
-    # crossValidatedAlgo(gmmMLE, gaussianPredict)
-    # trainAllTestAll(gmmMLE, gmmPredict)
-    # saveLookupTable(gmmMLE, getGmmLookupTable, 'GmmMLE')
-    # trainAllTestAllLookup('GmmMLE', gmmPredictLookup)
-
-
-# Better bounding box statistics - account for the tilt, merging bounding boxes behind objects etc
-# Take prior (as opposed to uniform at present) for different colors... 
+    # saveLookupTable(g.train, g.getLookupTable, 'Gaussian_test_temp1', DATA_FOLDER)
+    # trainAllTestAllLookup('Gaussian_test_temp1', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gausian_test_3')
