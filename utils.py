@@ -164,7 +164,7 @@ def getBestBoundingBox(img, mask):
 	analysis = [(prop.filled_area, prop.extent, i) for i, prop in enumerate(props)]
 
 	totalSumOfArea = sum([a[0] for a in analysis])
-	mostOfData = 0.90 * totalSumOfArea
+	mostOfData = 0.70 * totalSumOfArea
 	sortedByArea = sorted(analysis, key=lambda x: x[0], reverse=True)
 
 	indexTillMostData = 0
@@ -179,11 +179,24 @@ def getBestBoundingBox(img, mask):
 	sortedByExtent = sorted(goodBboxData, key=lambda x: x[1], reverse=True)
 
 	bestBboxIndex = sortedByExtent[0][2]
+	bestBboxArea = props[bestBboxIndex].filled_area
+	bestBboxExtent = props[bestBboxIndex].extent
 
-	print props[bestBboxIndex].centroid
+	centroidList = []
+	centroidList.append(props[bestBboxIndex].centroid)
 
 	x1, y1, x2, y2 = props[bestBboxIndex].bbox
 	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+
+	dimensionList = []
+	dimensionList.append((x1, y1, x2, y2))
+
+	for ii in range(1, len(sortedByExtent)):
+		if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
+			centroidList.append(props[sortedByExtent[ii][2]].centroid)
+			x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
+			cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+			dimensionList.append((x1, y1, x2, y2))
 
 	return img
 

@@ -91,6 +91,7 @@ class GmmMLE:
 			return False
 
 	def predict(self, model, file):
+		threshold = -110
 		img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 		# res = np.apply_along_axis(self.gmmPredictHelperManyGaussians, 2, img, model)
@@ -106,6 +107,8 @@ class GmmMLE:
 		res = np.argmax(bigMat, axis = 2)
 		res = res == 0
 
+		resThreshold = np.amax(bigMat, axis = 2) > threshold
+		res = np.logical_and(res, resThreshold)
 		return res
 
 	def gmmPredictLookupHelper(self, x, model):
@@ -130,8 +133,8 @@ class GmmMLE:
 		return res
 
 	def getLookupTable(self, model):
+		threshold = -110
 		res = np.transpose(np.indices((256, 256, 256)), (1, 2, 3, 0))
-		print res.shape
 
 		bigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], len(model.color)))
 		for c, color in enumerate(model.color):
@@ -144,10 +147,8 @@ class GmmMLE:
 		res = np.argmax(bigMat, axis = 3)
 		res = res == 0
 
-		np.set_printoptions(threshold=np.inf)
-		print bigMat[res][0:500]
-		np.set_printoptions(threshold=1000)
-
+		resThreshold = np.amax(bigMat, axis = 3) > threshold
+		res = np.logical_and(res, resThreshold)
 		return res
 
 	def initializeEMparameters(self, k):

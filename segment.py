@@ -27,12 +27,12 @@ if __name__ == "__main__":
     # g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
     g = GmmMLE(COLOR_LIST, DATA_FOLDER)
 
-    # crossValidatedAlgo(g.train, g.predict, DATA_FOLDER)
+    crossValidatedAlgo(g.train, g.predict, DATA_FOLDER)
 
     # trainAllTestAll(g.train, g.predict, DATA_FOLDER, 'outBbox_Gmm_1')
 
-    saveLookupTable(g.train, g.getLookupTable, 'GmmMLE_2', DATA_FOLDER)
-    trainAllTestAllLookup('GmmMLE_2', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gmm_2')
+    # saveLookupTable(g.train, g.getLookupTable, 'GmmMLE_2', DATA_FOLDER)
+    # trainAllTestAllLookup('GmmMLE_2', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gmm_2')
 
     #######################
     #######################
