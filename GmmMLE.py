@@ -15,10 +15,11 @@ from utils import *
 
 class GmmMLE:
 
-	def __init__(self, colorList, dataFolder, numMixtures=3):
+	def __init__(self, colorList, dataFolder, numMixtures=3, covMethod = 'FullCov'):
 		self.COLOR_LIST = colorList
 		self.DATA_FOLDER = dataFolder
 		self.K = numMixtures
+		self.covMethod = covMethod
 
 	def prob_x_cl_gaussian(self, x, mean, covariance, covarianceInverse):
 		x = x.reshape(3, 1)
@@ -150,7 +151,7 @@ class GmmMLE:
 		mixProb = [(1.0/k)] * k
 		return mu, sigma, mixProb
 
-	def EM(self, X):
+	def EM(self, X, covMethod = 'FullCov'):
 		numTry = 1
 		k = self.K # Number of mixtures
 		n = X.shape[0]
@@ -183,17 +184,24 @@ class GmmMLE:
 							cumSum = np.sum(np.multiply(membership[:, j].reshape(n, 1), X), axis=0).reshape(1, 3)
 							mu[j] = (1.0/Nk[j]) * cumSum
 
-						for j in xrange(k):
-							shiftedX = np.subtract(X, mu[j])
-							cumSum = np.zeros((3, 3))
-							for it in (range((n/100000) + 1)):
-								start = it * 100000
-								end = min((it+1) * 100000, n)
-								for r in range(3):
-									for t in range(3):
-										prod_r_t = np.multiply(shiftedX[start:end, r], shiftedX[start:end, t])
-										cumSum[r,t] = cumSum[r,t] + np.sum(np.multiply(membership[start:end, j].reshape((end-start), 1), prod_r_t.reshape((end-start), 1)), axis=0)
-							sigma[j] = (1.0/Nk[j]) * cumSum
+						if covMethod == 'FullCov':
+							for j in xrange(k):
+								shiftedX = np.subtract(X, mu[j])
+								cumSum = np.zeros((3, 3))
+								for it in (range((n/100000) + 1)):
+									start = it * 100000
+									end = min((it+1) * 100000, n)
+									for r in range(3):
+										for t in range(3):
+											prod_r_t = np.multiply(shiftedX[start:end, r], shiftedX[start:end, t])
+											cumSum[r,t] = cumSum[r,t] + np.sum(np.multiply(membership[start:end, j].reshape((end-start), 1), prod_r_t.reshape((end-start), 1)), axis=0)
+								sigma[j] = (1.0/Nk[j]) * cumSum
+						elif covMethod == 'DiagonalCov':
+							for j in range(k):
+								shiftedX = np.subtract(X, mu[j])
+								shiftedSqX = np.square(shiftedX)
+								sigma[j] = (1.0/Nk[j]) * np.diag(np.sum(np.multiply(membership[:, j], shiftedSqX), axis=0))
+
 						sigmaInverse = [np.linalg.pinv(s) for s in sigma]
 						# M-step done
 						#################################################################################
@@ -246,7 +254,7 @@ class GmmMLE:
 				roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
 			if roiPixels.shape[0] != 0:
 				print '\nColor: ' + str(color) 
-				mu, sigma, mixProb, sigmaInverse = self.EM(roiPixels)
+				mu, sigma, mixProb, sigmaInverse = self.EM(roiPixels, self.covMethod)
 				mean[idx] = mu
 				covariance[idx] = sigma
 				mixingProbabilites[idx] = mixProb

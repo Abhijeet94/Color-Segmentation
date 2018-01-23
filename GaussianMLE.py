@@ -148,8 +148,8 @@ class GaussianMLE:
 				roiPixelsInFile = getROIPixels(img, mask)
 				roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
 			if roiPixels.shape[0] != 0:
-				mean[idx] = calMean(roiPixels)
-				covariance[idx] = calCovariance(roiPixels.T)
+				mean[idx] = np.sum(roiPixels, axis=0) / roiPixels.shape[0]
+				covariance[idx] = np.matmul(roiPixels.T, roiPixels) / (roiPixels.shape[0])
 				covarianceInverse[idx] = np.linalg.inv(covariance[idx])
 
 		model = GaussianMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)

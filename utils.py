@@ -102,12 +102,6 @@ def getImageROIMask(imgName, color, DATA_FOLDER):
 
 #######################################################################################################################################
 
-def calMean(m):
-	return m.mean(0)
-
-def calCovariance(m):
-	return np.cov(m)
-
 def showImage(img, imageName='Image'):
 	cv2.imshow(imageName,img)
 	cv2.waitKey(0)
@@ -184,12 +178,14 @@ def getBestBoundingBox(img, mask):
 
 	centroidList = []
 	dimensionList = []
+	areaList = []
 
 	x1, y1, x2, y2 = props[bestBboxIndex].bbox
 	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
 
 	centroidList.append(props[bestBboxIndex].centroid)
 	dimensionList.append((x1, y1, x2, y2))
+	areaList.append(props[bestBboxIndex].filled_area)
 
 	for ii in range(1, len(sortedByExtent)):
 		if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
@@ -197,8 +193,9 @@ def getBestBoundingBox(img, mask):
 			x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
 			cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
 			dimensionList.append((x1, y1, x2, y2))
+			areaList.append(props[sortedByExtent[ii][2]].filled_area)
 
-	return img, dimensionList, centroidList
+	return img, dimensionList, centroidList, areaList
 
 def showBestBoundingBox(img, mask):
 	showImage(getBestBoundingBox(img, mask)[0])
