@@ -15,9 +15,10 @@ from utils import *
 
 class GmmMLE:
 
-	def __init__(self, colorList, dataFolder):
+	def __init__(self, colorList, dataFolder, numMixtures=3):
 		self.COLOR_LIST = colorList
 		self.DATA_FOLDER = dataFolder
+		self.K = numMixtures
 
 	def prob_x_cl_gaussian(self, x, mean, covariance, covarianceInverse):
 		x = x.reshape(3, 1)
@@ -83,11 +84,10 @@ class GmmMLE:
 		else:
 			return False
 
-	def predict(self, model, file):
+	def predict(self, model, img):
 		threshold = -110
-		img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+		# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-		# res = np.apply_along_axis(self.gmmPredictHelperManyGaussians, 2, img, model)
 
 		bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
 		for c, color in enumerate(model.color):
@@ -152,7 +152,7 @@ class GmmMLE:
 
 	def EM(self, X):
 		numTry = 1
-		k = 3 # Number of mixtures
+		k = self.K # Number of mixtures
 		n = X.shape[0]
 		logLikelihood = 0; maxLikelihood = float("-inf")
 		best_mu, best_sigma, best_mixProb = self.initializeEMparameters(k)

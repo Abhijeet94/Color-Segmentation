@@ -68,17 +68,17 @@ class GaussianMLE:
 		else:
 			return False
 
-	def predict(self, model, file):
+	def predict(self, model, img):
 		if len(model.color) == 1:
 			# threshold = 1e-07 #for RGB
 			threshold = 1e-05 #for Y_CR_CB
 
-			img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+			# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 			res = np.apply_along_axis(self.gaussianPredictHelperSingleGaussian, 2, img, model)
 		else:
 			threshold = -30
-			img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+			# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 			# res = np.apply_along_axis(self.gaussianPredictHelperManyGaussians, 2, img, model)
 

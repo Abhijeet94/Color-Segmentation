@@ -183,12 +183,12 @@ def getBestBoundingBox(img, mask):
 	bestBboxExtent = props[bestBboxIndex].extent
 
 	centroidList = []
-	centroidList.append(props[bestBboxIndex].centroid)
+	dimensionList = []
 
 	x1, y1, x2, y2 = props[bestBboxIndex].bbox
 	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
 
-	dimensionList = []
+	centroidList.append(props[bestBboxIndex].centroid)
 	dimensionList.append((x1, y1, x2, y2))
 
 	for ii in range(1, len(sortedByExtent)):
@@ -198,10 +198,10 @@ def getBestBoundingBox(img, mask):
 			cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
 			dimensionList.append((x1, y1, x2, y2))
 
-	return img
+	return img, dimensionList, centroidList
 
 def showBestBoundingBox(img, mask):
-	showImage(getBestBoundingBox(img, mask))
+	showImage(getBestBoundingBox(img, mask)[0])
 
 def getMaskMatchScore(groundtruth, predicted):
 	rows, cols = groundtruth.shape
@@ -222,4 +222,4 @@ def getMaskMatchScore(groundtruth, predicted):
 	precision = tp / (tp + fp + 0.0)
 	recall = tp / (tp + fn + 0.0)
 	f_measure = 2 * precision * recall / (precision + recall)
-	return f_measure
+	return f_measure, recall
