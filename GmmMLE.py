@@ -37,7 +37,6 @@ class GmmMLE:
 		return result
 
 	def log_prob_x_cl_gaussian(self, x, mean, covariance, covarianceInverse):
-		# constant = (np.linalg.det(covarianceInverse) ** (1/2.0)) / ((((2 * math.pi) ** 3)) ** (1/2.0))
 		constant1 = (-3.0/2) * math.log(2 * math.pi)
 
 		detSigmaInv = np.linalg.det(covarianceInverse)
@@ -86,8 +85,8 @@ class GmmMLE:
 			return False
 
 	def predict(self, model, img):
-		threshold = -110
-		# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+		# threshold = -110 #k=3
+		threshold = -15 #k=2
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 
 		bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
@@ -95,11 +94,14 @@ class GmmMLE:
 			k = len(model.mean[0])
 			localBigMat = np.zeros((img.shape[0], img.shape[1], k))
 			for j in range(k):
-				# localBigMat[:, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(img, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
 				localBigMat[:, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  self.multivariateNormalLogPdf(img, (model.mean[c])[j], (model.cov[c])[j], (model.covInverse[c])[j])
 			bigMat[:, :, c] = logsumexp(localBigMat, axis=2).reshape(img.shape[0], img.shape[1])
 		res = np.argmax(bigMat, axis = 2)
 		res = res == 0
+
+		np.set_printoptions(threshold = np.inf)
+		print bigMat[res][1:500]
+		np.set_printoptions(threshold = 1000)
 
 		resThreshold = np.amax(bigMat, axis = 2) > threshold
 		res = np.logical_and(res, resThreshold)
@@ -135,7 +137,6 @@ class GmmMLE:
 			k = len(model.mean[0])
 			localBigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], k))
 			for j in range(k):
-				# localBigMat[:, :, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  multivariate_normal.logpdf(res, mean=(model.mean[c])[j].reshape(3), cov=(model.cov[c])[j])
 				localBigMat[:, :, :, j] = math.log((model.mixtureProbabilities[c])[j]) +  self.multivariateNormalLogPdf(res, (model.mean[c])[j], (model.cov[c])[j], (model.covInverse[c])[j])
 			bigMat[:, :, :, c] = logsumexp(localBigMat, axis=3).reshape(res.shape[0], res.shape[1], res.shape[2])
 		res = np.argmax(bigMat, axis = 3)
@@ -170,7 +171,6 @@ class GmmMLE:
 					while True: # EM iterations
 
 						for j in range(k):
-							# membership[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
 							membership[:, j] = math.log(mixProb[j]) + self.multivariateNormalLogPdf(X, mu[j], sigma[j], sigmaInverse[j])
 						membership = np.exp(membership - logsumexp(membership, axis=1)[:,None])
 						# E-step done
@@ -209,7 +209,6 @@ class GmmMLE:
 						# Evaluate log-likelihood
 						tempN = np.zeros((n, k))
 						for j in range(k):
-							# tempN[:, j] = math.log(mixProb[j]) + multivariate_normal.logpdf(X, mean=mu[j].reshape(3), cov=sigma[j])
 							tempN[:, j] = math.log(mixProb[j]) + self.multivariateNormalLogPdf(X, mu[j], sigma[j], sigmaInverse[j])
 						logLikelihood = np.sum(logsumexp(membership, axis=1).reshape(n, 1), axis = 0)
 						# Evaluate done

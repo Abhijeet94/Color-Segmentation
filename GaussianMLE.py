@@ -73,17 +73,13 @@ class GaussianMLE:
 			# threshold = 1e-07 #for RGB
 			threshold = 1e-05 #for Y_CR_CB
 
-			# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			# res = np.apply_along_axis(self.gaussianPredictHelperSingleGaussian, 2, img, model)
 			res = np.exp(self.multivariateNormalLogPdf(img, model.mean[0], model.cov[0], model.covInverse[0])) > threshold
 		else:
 			threshold = -30 #Y_CRCB
 			# threshold = -16 #RGB
-			
-			# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			# res = np.apply_along_axis(self.gaussianPredictHelperManyGaussians, 2, img, model)
 
 			bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
 			for c, color in enumerate(model.color):
@@ -107,7 +103,6 @@ class GaussianMLE:
 		img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 		res = np.apply_along_axis(self.gaussianPredictLookupHelper, 2, img, model)
-		# print 'oioi'
 		return res
 
 	def getLookupTable(self, model):
@@ -120,8 +115,6 @@ class GaussianMLE:
 					for k in xrange(z):
 						if len(model.color) == 1:
 							res.itemset((i, j, k), self.gaussianPredictHelperSingleGaussian(np.asarray([i, j, k]), model))
-						# else:
-						# 	res.itemset((i, j, k), self.gaussianPredictHelperManyGaussians(np.asarray([i, j, k]), model))
 		else:
 			threshold = -30
 			res = np.transpose(np.indices((256, 256, 256)), (1, 2, 3, 0))

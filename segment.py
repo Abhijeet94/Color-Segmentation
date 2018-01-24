@@ -25,9 +25,9 @@ COLOR_LIST = ['red_barrel', 'white_shine', 'red_nonbarrel', 'black_dark', 'green
 if __name__ == "__main__":
 
     # g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
-    # g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures=3, covMethod = 'FullCov')
+    g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures=2, covMethod = 'FullCov')
 
-    # crossValidatedAlgo(g.train, g.predict, DATA_FOLDER)#, 'tempModelGaussian11.pkl')
+    crossValidatedAlgo(g.train, g.predict, DATA_FOLDER)#, 'tempModelGmm2.pkl')
 
     # trainAllTestAll(g.train, g.predict, DATA_FOLDER, 'outBbox_Gmm_1')
 
@@ -35,4 +35,4 @@ if __name__ == "__main__":
     # trainAllTestAllLookup('Gaussian_test_temp1', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gausian_test_3')
     # crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST)
     # singleGaussianScore(DATA_FOLDER, COLOR_LIST)
-    multiGaussianScore(DATA_FOLDER, COLOR_LIST)
+    # multiGaussianScore(DATA_FOLDER, COLOR_LIST)
