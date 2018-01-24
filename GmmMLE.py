@@ -200,7 +200,7 @@ class GmmMLE:
 							for j in range(k):
 								shiftedX = np.subtract(X, mu[j])
 								shiftedSqX = np.square(shiftedX)
-								sigma[j] = (1.0/Nk[j]) * np.diag(np.sum(np.multiply(membership[:, j], shiftedSqX), axis=0))
+								sigma[j] = (1.0/Nk[j]) * np.diag(np.sum(np.multiply(membership[:, j].reshape(n, 1), shiftedSqX), axis=0))
 
 						sigmaInverse = [np.linalg.pinv(s) for s in sigma]
 						# M-step done

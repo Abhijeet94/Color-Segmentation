@@ -49,10 +49,10 @@ def crossValidatedAlgo(algo, predict, DATA_FOLDER, SAVED_MODEL=None):
 
 		groundTruth = getImageROIMask(file, 'red_barrel', DATA_FOLDER)
 		# print 'F-measure', 
-		score = getMaskMatchScore(groundTruth, testResultMask)
-		# print score
+		fmeasure, recall = getMaskMatchScore(groundTruth, testResultMask)
+		# print fmeasure
 
-		finalScore = finalScore + score
+		finalScore = finalScore + fmeasure
 
 		showMaskedPart(img, testResultMask, file)
 		showBoundingBoxes(img, testResultMask)
@@ -153,10 +153,10 @@ def predictWithModel(model, filePath, predictFunction, DATA_FOLDER, groundTruthA
 def crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 
-	k_range = [3, 4, 5, 6]
+	k_range = [4, 5, 6]
 	fmeasureList = [0] * len(k_range)
 	recallList = [0] * len(k_range)
-	for k in k_range:
+	for ki, k in enumerate(k_range):
 		numIterations = 10
 		for it in range(numIterations):
 			training, test = getTrainingTestSplit(fileList)
@@ -169,14 +169,14 @@ def crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST):
 				img, dimensionList, centroidList, areaList, fmeasure, recall = predictWithModel(model, os.path.join(DATA_FOLDER, file), g.predict, DATA_FOLDER, True)
 				cumulativeFMeasure = cumulativeFMeasure + fmeasure
 				cumulativeRecall = cumulativeRecall + recall
-			fmeasureList[k] = fmeasureList[k] + cumulativeFMeasure/len(test)
-			recallList[k] = recallList[k] + cumulativeRecall/len(test)
-		fmeasureList[k] = fmeasureList[k]/numIterations
-		recallList[k] = recallList[k]/numIterations
+			fmeasureList[ki] = fmeasureList[ki] + cumulativeFMeasure/len(test)
+			recallList[ki] = recallList[ki] + cumulativeRecall/len(test)
+		fmeasureList[ki] = fmeasureList[ki]/numIterations
+		recallList[ki] = recallList[ki]/numIterations
 
 		print k
-		print fmeasureList[k]
-		print recallList[k]
+		print fmeasureList[ki]
+		print recallList[ki]
 
 	print 'Final - '
 	print k_range
@@ -186,6 +186,62 @@ def crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST):
 # 2
 # 0.881265483179
 # 0.961660081236
+
+# 3
+# 0.814542589476
+# 0.963764115267
+
+def singleGaussianScore(DATA_FOLDER, COLOR_LIST):
+	COLOR_LIST = [COLOR_LIST[0]]
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	numIterations = 10
+	cumulativeFMeasure = 0
+	cumulativeRecall = 0
+	count = 0
+	for it in range(numIterations):
+		training, test = getTrainingTestSplit(fileList)
+		g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
+		model = g.train(training)
+
+		for file in test:
+			img, dimensionList, centroidList, areaList, fmeasure, recall = predictWithModel(model, os.path.join(DATA_FOLDER, file), g.predict, DATA_FOLDER, True)
+			cumulativeFMeasure = cumulativeFMeasure + fmeasure
+			cumulativeRecall = cumulativeRecall + recall
+			count = count + 1
+	print cumulativeFMeasure/count
+	print  cumulativeRecall/count
+
+# 0.702075338927
+# 0.65240721917
+
+def multiGaussianScore(DATA_FOLDER, COLOR_LIST):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	numIterations = 10
+	cumulativeFMeasure = 0
+	cumulativeRecall = 0
+	count = 0
+	for it in range(numIterations):
+		training, test = getTrainingTestSplit(fileList)
+		g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
+		model = g.train(training)
+
+		for file in test:
+			img, dimensionList, centroidList, areaList, fmeasure, recall = predictWithModel(model, os.path.join(DATA_FOLDER, file), g.predict, DATA_FOLDER, True)
+			cumulativeFMeasure = cumulativeFMeasure + fmeasure
+			cumulativeRecall = cumulativeRecall + recall
+			count = count + 1
+	print cumulativeFMeasure/count
+	print  cumulativeRecall/count
+
+# Gaussians
+
+# Y Cr cb
+# 0.88226573548
+# 0.959098633618
+
+# RGB
+# 0.865992640822
+# 0.927456024643
 
 ###########################################################################################
 

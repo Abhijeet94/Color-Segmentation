@@ -27,7 +27,7 @@ class GaussianMLE:
 		result = constant * math.exp(exponent)
 		return result
 
-	def multivariateNormalPdf(self, X, mean, covariance, covarianceInverse):
+	def multivariateNormalLogPdf(self, X, mean, covariance, covarianceInverse):
 		constant1 = (-3.0/2) * math.log(2 * math.pi)
 
 		detSigmaInv = np.linalg.det(covarianceInverse)
@@ -75,16 +75,19 @@ class GaussianMLE:
 
 			# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
-			res = np.apply_along_axis(self.gaussianPredictHelperSingleGaussian, 2, img, model)
+			# res = np.apply_along_axis(self.gaussianPredictHelperSingleGaussian, 2, img, model)
+			res = np.exp(self.multivariateNormalLogPdf(img, model.mean[0], model.cov[0], model.covInverse[0])) > threshold
 		else:
-			threshold = -30
+			threshold = -30 #Y_CRCB
+			# threshold = -16 #RGB
+			
 			# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 			img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 			# res = np.apply_along_axis(self.gaussianPredictHelperManyGaussians, 2, img, model)
 
 			bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
 			for c, color in enumerate(model.color):
-				bigMat[:, :, c] = self.multivariateNormalPdf(img, model.mean[c], model.cov[c], model.covInverse[c])
+				bigMat[:, :, c] = self.multivariateNormalLogPdf(img, model.mean[c], model.cov[c], model.covInverse[c])
 			res = np.argmax(bigMat, axis = 2)
 			res = res == 0
 
@@ -125,7 +128,7 @@ class GaussianMLE:
 
 			bigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], len(model.color)))
 			for c, color in enumerate(model.color):
-				bigMat[:, :, :, c] = self.multivariateNormalPdf(res, model.mean[c], model.cov[c], model.covInverse[c])
+				bigMat[:, :, :, c] = self.multivariateNormalLogPdf(res, model.mean[c], model.cov[c], model.covInverse[c])
 			res = np.argmax(bigMat, axis = 3)
 			res = res == 0
 
@@ -148,8 +151,9 @@ class GaussianMLE:
 				roiPixelsInFile = getROIPixels(img, mask)
 				roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
 			if roiPixels.shape[0] != 0:
-				mean[idx] = np.sum(roiPixels, axis=0) / roiPixels.shape[0]
-				covariance[idx] = np.matmul(roiPixels.T, roiPixels) / (roiPixels.shape[0])
+				mean[idx] = np.sum(roiPixels * 1.0, axis=0) / roiPixels.shape[0]
+				shiftedRoiPixels = np.subtract(roiPixels * 1.0, mean[idx])
+				covariance[idx] = np.matmul(shiftedRoiPixels.T, shiftedRoiPixels) / (roiPixels.shape[0])
 				covarianceInverse[idx] = np.linalg.inv(covariance[idx])
 
 		model = GaussianMLEParams(color=self.COLOR_LIST, mean=mean, cov=covariance, covInverse=covarianceInverse)

@@ -152,48 +152,49 @@ def showBoundingBoxes(img, mask):
 	showImage(getBoundingBoxes(img, mask))
 
 def getBestBoundingBox(img, mask):
+	centroidList = []
+	dimensionList = []
+	areaList = []
+
 	label_img = label(mask, connectivity=mask.ndim)
 	props = regionprops(label_img)
 
 	analysis = [(prop.filled_area, prop.extent, i) for i, prop in enumerate(props)]
 
-	totalSumOfArea = sum([a[0] for a in analysis])
-	mostOfData = 0.70 * totalSumOfArea
-	sortedByArea = sorted(analysis, key=lambda x: x[0], reverse=True)
+	if len(analysis) > 0:
+		totalSumOfArea = sum([a[0] for a in analysis])
+		mostOfData = 0.70 * totalSumOfArea
+		sortedByArea = sorted(analysis, key=lambda x: x[0], reverse=True)
 
-	indexTillMostData = 0
-	sumTillNow = 0
-	for i in xrange(len(sortedByArea)):
-		sumTillNow = sumTillNow + sortedByArea[i][0]
-		if sumTillNow >= mostOfData:
-			indexTillMostData = i
-			break
+		indexTillMostData = 0
+		sumTillNow = 0
+		for i in xrange(len(sortedByArea)):
+			sumTillNow = sumTillNow + sortedByArea[i][0]
+			if sumTillNow >= mostOfData:
+				indexTillMostData = i
+				break
 
-	goodBboxData = sortedByArea[0:indexTillMostData + 1]
-	sortedByExtent = sorted(goodBboxData, key=lambda x: x[1], reverse=True)
+		goodBboxData = sortedByArea[0:indexTillMostData + 1]
+		sortedByExtent = sorted(goodBboxData, key=lambda x: x[1], reverse=True)
 
-	bestBboxIndex = sortedByExtent[0][2]
-	bestBboxArea = props[bestBboxIndex].filled_area
-	bestBboxExtent = props[bestBboxIndex].extent
+		bestBboxIndex = sortedByExtent[0][2]
+		bestBboxArea = props[bestBboxIndex].filled_area
+		bestBboxExtent = props[bestBboxIndex].extent
 
-	centroidList = []
-	dimensionList = []
-	areaList = []
+		x1, y1, x2, y2 = props[bestBboxIndex].bbox
+		cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
 
-	x1, y1, x2, y2 = props[bestBboxIndex].bbox
-	cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+		centroidList.append(props[bestBboxIndex].centroid)
+		dimensionList.append((x1, y1, x2, y2))
+		areaList.append(props[bestBboxIndex].filled_area)
 
-	centroidList.append(props[bestBboxIndex].centroid)
-	dimensionList.append((x1, y1, x2, y2))
-	areaList.append(props[bestBboxIndex].filled_area)
-
-	for ii in range(1, len(sortedByExtent)):
-		if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
-			centroidList.append(props[sortedByExtent[ii][2]].centroid)
-			x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
-			cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
-			dimensionList.append((x1, y1, x2, y2))
-			areaList.append(props[sortedByExtent[ii][2]].filled_area)
+		for ii in range(1, len(sortedByExtent)):
+			if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
+				centroidList.append(props[sortedByExtent[ii][2]].centroid)
+				x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
+				cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+				dimensionList.append((x1, y1, x2, y2))
+				areaList.append(props[sortedByExtent[ii][2]].filled_area)
 
 	return img, dimensionList, centroidList, areaList
 
@@ -216,7 +217,18 @@ def getMaskMatchScore(groundtruth, predicted):
 				tn = tn + 1
 			if groundtruth.item(row, col) == True and predicted.item(row, col) == False:
 				fn = fn + 1
-	precision = tp / (tp + fp + 0.0)
-	recall = tp / (tp + fn + 0.0)
-	f_measure = 2 * precision * recall / (precision + recall)
+	if tp + fp > 0:
+		precision = tp / (tp + fp + 0.0)
+	else:
+		precision = 0
+
+	if tp + fn > 0:
+		recall = tp / (tp + fn + 0.0)
+	else:
+		recall = 0
+
+	if precision + recall > 0:
+		f_measure = 2 * precision * recall / (precision + recall)
+	else:
+		f_measure = 0
 	return f_measure, recall
