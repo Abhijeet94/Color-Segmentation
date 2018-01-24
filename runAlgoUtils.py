@@ -153,7 +153,7 @@ def predictWithModel(model, filePath, predictFunction, DATA_FOLDER, groundTruthA
 def crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 
-	k_range = [4, 5, 6]
+	k_range = [2, 3, 4, 5, 6]
 	fmeasureList = [0] * len(k_range)
 	recallList = [0] * len(k_range)
 	for ki, k in enumerate(k_range):
@@ -251,24 +251,97 @@ def multiGaussianScore(DATA_FOLDER, COLOR_LIST):
 # 0.865992640822
 # 0.927456024643
 
+def trainBarrelDistanceModel(DATA_FOLDER):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	X = []
+	Y = []
+	for file in fileList:
+		groundTruthRed = getImageROIMask(file, 'red_barrel', DATA_FOLDER)
+		distanceStr = file.split('.')[0]
+
+		if len(distanceStr.split('_')) == 1:
+			barrelArea = np.sum(groundTruthRed)
+			X.append(1.0 / (barrelArea ** (0.5)))
+			Y.append(int(distanceStr))
+
+	nX = np.asarray(X).reshape(len(X), 1)
+	nX = np.hstack((nX, np.ones((nX.shape[0], 1))))
+	nY = np.asarray(Y)
+
+	# slope = (1.0/np.matmul(nX.T, nX)) * np.matmul(nX.T, nY)
+	slope = np.matmul(np.linalg.inv(np.matmul(nX.T, nX)), np.matmul(nX.T, nY))
+	print slope
+
+def testBarrelDistanceModel(DATA_FOLDER):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	training, test = getTrainingTestSplit(fileList)
+	X = []
+	Y = []
+	for file in training:
+		groundTruthRed = getImageROIMask(file, 'red_barrel', DATA_FOLDER)
+		distanceStr = file.split('.')[0]
+
+		if len(distanceStr.split('_')) == 1:
+			barrelArea = np.sum(groundTruthRed)
+			X.append(1.0 / (barrelArea ** (0.5)))
+			Y.append(int(distanceStr))
+
+	nX = np.asarray(X).reshape(len(X), 1)
+	nX = np.hstack((nX, np.ones((nX.shape[0], 1))))
+	nY = np.asarray(Y)
+
+	# plt.plot(X, Y, 'ro')
+	# # plt.axis([0, 6, 0, 20])
+	# plt.show()
+
+
+	slope = np.matmul(np.linalg.inv(np.matmul(nX.T, nX)), np.matmul(nX.T, nY))
+
+	for file in test:
+		groundTruthRed = getImageROIMask(file, 'red_barrel', DATA_FOLDER)
+		distanceStr = file.split('.')[0]
+
+		if len(distanceStr.split('_')) == 1:
+			print 'Actual distance: ' + distanceStr
+			barrelArea = np.sum(groundTruthRed)
+			x = np.ones((2, 1))
+			x[0, 0] = 1.0 / (barrelArea ** (0.5))
+			print 'Predicted distance: ' + str(np.dot(slope,x))
+
+def calBarrelDistance(areaList):
+	dist = []
+	slope = [4.70917397e+02, 2.30127587e-01]
+	for area in areaList:
+		x = np.ones((2, 1))
+		x[0, 0] = 1.0 / (area ** (0.5))
+		dist.append(np.dot(slope,x)[0].tolist())
+	return dist
+
 ###########################################################################################
 
-def myAlgorithm(img):
-	cv2.imshow('image',img)
-	return 0,0,0
+def doSomeTests(DATA_FOLDER, COLOR_LIST):
+	# g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
+    # g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures=2, covMethod = 'FullCov')
 
-def test():
-	folder = "Test_Set"
-	for filename in os.listdir(folder):
-		# read one test image
-		img = cv2.imread(os.path.join(folder,filename))
-		# Your computations here!
-		x, y, d = myAlgorithm(img)
-		# Display results:
-		# (1) Segmented image
-		# (2) Barrel bounding box
-		# (3) Distance of barrel
-		# You may also want to plot and display other diagnostic information
-		print filename
-		cv2.waitKey(0)
-		cv2.destroyAllWindows()
+    # crossValidatedAlgo(g.train, g.predict, DATA_FOLDER, 'tempModelGmm2.pkl')
+
+    # trainAllTestAll(g.train, g.predict, DATA_FOLDER, 'outBbox_Gmm_1')
+
+    # saveLookupTable(g.train, g.getLookupTable, 'GmmTable', DATA_FOLDER)
+    # trainAllTestAllLookup('Gaussian_test_temp1', g.predictWithLookupTable, DATA_FOLDER, 'outBbox_Gausian_test_3')
+    # crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST)
+    # singleGaussianScore(DATA_FOLDER, COLOR_LIST)
+    # multiGaussianScore(DATA_FOLDER, COLOR_LIST)
+    # testBarrelDistanceModel(DATA_FOLDER)
+    # trainBarrelDistanceModel(DATA_FOLDER)
+    plotLookupTable('GmmTable')
+
+###########################################################################################
+
+def doSegmentation(img, table, lookupTablePredictFunc, DATA_FOLDER, COLOR_LIST):
+	imgCopy = img.copy()
+	testResultMask = lookupTablePredictFunc(table, img)
+	bboxImage, dimensionList, centroidList, areaList = getBestBoundingBox(img, testResultMask)
+	barrelDistance = calBarrelDistance(areaList)
+	return getMaskedpart(imgCopy, testResultMask), bboxImage, barrelDistance, centroidList
+

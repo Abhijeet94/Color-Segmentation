@@ -99,9 +99,9 @@ class GmmMLE:
 		res = np.argmax(bigMat, axis = 2)
 		res = res == 0
 
-		np.set_printoptions(threshold = np.inf)
-		print bigMat[res][1:500]
-		np.set_printoptions(threshold = 1000)
+		# np.set_printoptions(threshold = np.inf)
+		# print bigMat[res][1:500]
+		# np.set_printoptions(threshold = 1000)
 
 		resThreshold = np.amax(bigMat, axis = 2) > threshold
 		res = np.logical_and(res, resThreshold)
@@ -110,8 +110,8 @@ class GmmMLE:
 	def gmmPredictLookupHelper(self, x, model):
 		return model.item(x[0], x[1], x[2])
 
-	def predictWithLookupTable(self, model, file):
-		img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
+	def predictWithLookupTable(self, model, img):
+		# img = cv2.imread(os.path.join(self.DATA_FOLDER, file))
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 		res = np.apply_along_axis(self.gmmPredictLookupHelper, 2, img, model)
 		return res

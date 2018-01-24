@@ -51,23 +51,6 @@ class GaussianMLE:
 		else:
 			return False
 
-	def gaussianPredictHelperManyGaussians(self, x, model):
-		# threshold = 1e-07 #for RGB
-		threshold = 0#1e-06 #for Y_CR_CB
-
-		red_barrel_probability = self.prob_x_cl_gaussian(x, model.mean[0], model.cov[0], model.covInverse[0])
-
-		max_other_probability = 0
-		for c in range(1, len(model.color)):
-			this_color_probability = self.prob_x_cl_gaussian(x, model.mean[c], model.cov[c], model.covInverse[c])
-			if this_color_probability > max_other_probability:
-				max_other_probability = this_color_probability
-
-		if red_barrel_probability > max_other_probability and red_barrel_probability > threshold:
-			return True
-		else:
-			return False
-
 	def predict(self, model, img):
 		if len(model.color) == 1:
 			# threshold = 1e-07 #for RGB

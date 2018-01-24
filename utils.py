@@ -181,20 +181,36 @@ def getBestBoundingBox(img, mask):
 		bestBboxArea = props[bestBboxIndex].filled_area
 		bestBboxExtent = props[bestBboxIndex].extent
 
-		x1, y1, x2, y2 = props[bestBboxIndex].bbox
-		cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+		if bestBboxExtent > 0.45 and bestBboxArea > 1200:
 
-		centroidList.append(props[bestBboxIndex].centroid)
-		dimensionList.append((x1, y1, x2, y2))
-		areaList.append(props[bestBboxIndex].filled_area)
+			x1, y1, x2, y2 = props[bestBboxIndex].bbox
+			cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+			# centroidCoord = props[bestBboxIndex].centroid # reverse the tuple after this
+			centroidCoord = ((y1+(y2-y1)/2.0), (x1+(x2-x1)/2.0))
+			centroidCoordToShow = (int(round(centroidCoord[0])), int(round(centroidCoord[1])))
+			cv2.circle(img, centroidCoordToShow, 3, (255,0,0), -1)
 
-		for ii in range(1, len(sortedByExtent)):
-			if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
-				centroidList.append(props[sortedByExtent[ii][2]].centroid)
-				x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
-				cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
-				dimensionList.append((x1, y1, x2, y2))
-				areaList.append(props[sortedByExtent[ii][2]].filled_area)
+			centroidList.append(centroidCoord)
+			dimensionList.append((x1, y1, x2, y2))
+			areaList.append(props[bestBboxIndex].filled_area)
+
+			# print bestBboxArea
+			# print ((x2-x1) * 1.0)/(y2-y1)
+			# print bestBboxExtent
+			# print ''
+
+			for ii in range(1, len(sortedByExtent)):
+				if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
+					x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
+					cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+					dimensionList.append((x1, y1, x2, y2))
+					areaList.append(props[sortedByExtent[ii][2]].filled_area)
+
+					# centroidCoord = props[sortedByExtent[ii][2]].centroid # reverse the tuple after this
+					centroidCoord = ((y1+(y2-y1)/2.0), (x1+(x2-x1)/2.0))
+					centroidCoordToShow = (int(round(centroidCoord[0])), int(round(centroidCoord[1])))
+					centroidList.append(centroidCoord)
+					cv2.circle(img, centroidCoordToShow, 3, (255,0,0), -1)
 
 	return img, dimensionList, centroidList, areaList
 
