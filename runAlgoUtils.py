@@ -111,13 +111,38 @@ def plotLookupTable(lookupFileName):
 
 	with open(os.path.join(LOOKUP_FOLDER, lookupFileName), 'rb') as input:
 		model = pickle.load(input)
+	pos = np.where(model==1)
+
+	for i in range(10):
+		mask = np.random.choice([True, False], (len(pos[0])))
+		pos = (pos[0][mask], pos[1][mask], pos[2][mask])
 
 	fig = plt.figure()
 	ax = fig.add_subplot(111, projection='3d')
+	# ax.plot_wireframe(pos[0], pos[1], pos[2], color='black')
+	ax.scatter(pos[0], pos[1], pos[2], c='blue')
+	plt.show()
 
-	pos = np.where(model==1)
-	ax.plot_wireframe(pos[0], pos[1], pos[2], color='black')
-	# ax.scatter(pos[0], pos[1], pos[2], c='red')
+def plotLabeledPixels(DATA_FOLDER):
+	fileList = getAllFilesInFolder(DATA_FOLDER)
+	roiPixels = np.empty((0,3), dtype=np.uint8)
+	for file in fileList:
+		img = cv2.imread(os.path.join(DATA_FOLDER, file))
+		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
+		mask = getImageROIMask(file, 'red_barrel', DATA_FOLDER)
+		roiPixelsInFile = getROIPixels(img, mask)
+		roiPixels = np.concatenate([roiPixels, roiPixelsInFile])
+
+	pos = (roiPixels[:, 0].reshape(roiPixels.shape[0]), roiPixels[:, 1].reshape(roiPixels.shape[0]), roiPixels[:, 2].reshape(roiPixels.shape[0]))
+
+	for i in range(6):
+		mask = np.random.choice([True, False], (len(pos[0])))
+		pos = (pos[0][mask], pos[1][mask], pos[2][mask])
+
+	fig = plt.figure()
+	ax = fig.add_subplot(111, projection='3d')
+	# ax.plot_wireframe(pos[0], pos[1], pos[2], color='black')
+	ax.scatter(pos[0], pos[1], pos[2], c='blue')
 	plt.show()
 
 ###########################################################################################
@@ -268,6 +293,14 @@ def trainBarrelDistanceModel(DATA_FOLDER):
 	nX = np.hstack((nX, np.ones((nX.shape[0], 1))))
 	nY = np.asarray(Y)
 
+	# fig = plt.figure()
+	# plt.plot(X, Y, 'ro')
+	# # plt.show()
+	# fig.suptitle('Barrel Distance variation with barrel area', fontsize=20)
+	# plt.xlabel('Inverse Area Square', fontsize=18)
+	# plt.ylabel('Barrel Distance', fontsize=16)
+	# fig.savefig('barrelDistance.jpg')
+
 	# slope = (1.0/np.matmul(nX.T, nX)) * np.matmul(nX.T, nY)
 	slope = np.matmul(np.linalg.inv(np.matmul(nX.T, nX)), np.matmul(nX.T, nY))
 	print slope
@@ -291,7 +324,6 @@ def testBarrelDistanceModel(DATA_FOLDER):
 	nY = np.asarray(Y)
 
 	# plt.plot(X, Y, 'ro')
-	# # plt.axis([0, 6, 0, 20])
 	# plt.show()
 
 
@@ -334,11 +366,12 @@ def doSomeTests(DATA_FOLDER, COLOR_LIST):
     # multiGaussianScore(DATA_FOLDER, COLOR_LIST)
     # testBarrelDistanceModel(DATA_FOLDER)
     # trainBarrelDistanceModel(DATA_FOLDER)
-    plotLookupTable('GmmTable')
+    # plotLookupTable('GmmTable')
+    plotLabeledPixels(DATA_FOLDER)
 
 ###########################################################################################
 
-def doSegmentation(img, table, lookupTablePredictFunc, DATA_FOLDER, COLOR_LIST):
+def doSegmentation(img, table, lookupTablePredictFunc):
 	imgCopy = img.copy()
 	testResultMask = lookupTablePredictFunc(table, img)
 	bboxImage, dimensionList, centroidList, areaList = getBestBoundingBox(img, testResultMask)

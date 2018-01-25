@@ -184,11 +184,9 @@ def getBestBoundingBox(img, mask):
 		if bestBboxExtent > 0.45 and bestBboxArea > 1200:
 
 			x1, y1, x2, y2 = props[bestBboxIndex].bbox
-			cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
-			# centroidCoord = props[bestBboxIndex].centroid # reverse the tuple after this
 			centroidCoord = ((y1+(y2-y1)/2.0), (x1+(x2-x1)/2.0))
-			centroidCoordToShow = (int(round(centroidCoord[0])), int(round(centroidCoord[1])))
-			cv2.circle(img, centroidCoordToShow, 3, (255,0,0), -1)
+			if bestBboxExtent < 0.9 and bestBboxExtent > 0.8:
+				centroidCoord = (centroidCoord[0], centroidCoord[1] + 0.03 * (abs(x2-x1)))
 
 			centroidList.append(centroidCoord)
 			dimensionList.append((x1, y1, x2, y2))
@@ -202,15 +200,55 @@ def getBestBoundingBox(img, mask):
 			for ii in range(1, len(sortedByExtent)):
 				if sortedByExtent[ii][1] > 0.85 * bestBboxExtent and sortedByExtent[ii][0] > 0.4 * bestBboxArea:
 					x1, y1, x2, y2 = props[sortedByExtent[ii][2]].bbox
-					cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
 					dimensionList.append((x1, y1, x2, y2))
 					areaList.append(props[sortedByExtent[ii][2]].filled_area)
 
-					# centroidCoord = props[sortedByExtent[ii][2]].centroid # reverse the tuple after this
 					centroidCoord = ((y1+(y2-y1)/2.0), (x1+(x2-x1)/2.0))
-					centroidCoordToShow = (int(round(centroidCoord[0])), int(round(centroidCoord[1])))
+					if sortedByExtent[ii][1] < 0.9 and sortedByExtent[ii][1] > 0.8:
+						centroidCoord = (centroidCoord[0], centroidCoord[1] + 0.03 * (abs(x2-x1)))
 					centroidList.append(centroidCoord)
+
+		# Merge bounding boxes belonging to the same barrel but separated due to objects in front of the barrel
+		# With the logic that any mergings will be performed with similar extent bounding boxes
+		numDeletions = 0
+		for i in range(len(centroidList)):
+			i = i - numDeletions
+			if i+1 < len(centroidList):
+				x11, y11, x12, y12 = dimensionList[i]
+				extentOf1 = (areaList[i]*1.0)/ (abs(y12 - y11) * abs(x12 - x11))
+
+				x21, y21, x22, y22 = dimensionList[i+1]
+				extentOf2 = (areaList[i+1]*1.0)/ (abs(y22 - y21) * abs(x22 - x21))
+
+				combinedExtent = (areaList[i]*1.0 + areaList[i+1])/(abs(max(y22, y12) - min(y21, y11)) * abs(max(x22, x12) - min(x21, x11)))
+
+				if abs(combinedExtent-extentOf1) < 0.2 and abs(combinedExtent-extentOf2) < 0.2 and abs(extentOf1 - extentOf2) < 0.1:
+					areaList[i] = areaList[i]*1.0 + areaList[i+1]
+					dimensionList[i] = (min(x21, x11), min(y21, y11), max(x22, x12), max(y22, y12))
+					centroidList[i] = ((dimensionList[i][1]+(dimensionList[i][3]-dimensionList[i][1])/2.0), (dimensionList[i][0]+(dimensionList[i][2]-dimensionList[i][0])/2.0))
+					centroidCoordToShow = (int(round(centroidList[i][0])), int(round(centroidList[i][1])))
 					cv2.circle(img, centroidCoordToShow, 3, (255,0,0), -1)
+					cv2.rectangle(img, (dimensionList[i][1], dimensionList[i][0]), (dimensionList[i][3], dimensionList[i][2]), (255,0,0), 2)
+
+					del areaList[i+1]
+					del dimensionList[i+1]
+					del centroidList[i+1]
+
+					numDeletions = numDeletions + 1
+
+				else:
+					x1, y1, x2, y2 = dimensionList[i]
+					centroidCoord = centroidList[i]
+					centroidCoordToShow = (int(round(centroidCoord[0])), int(round(centroidCoord[1])))
+					cv2.circle(img, centroidCoordToShow, 3, (255,0,0), -1)
+					cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+			else:
+				x1, y1, x2, y2 = dimensionList[i]
+				centroidCoord = centroidList[i]
+				centroidCoordToShow = (int(round(centroidCoord[0])), int(round(centroidCoord[1])))
+				cv2.circle(img, centroidCoordToShow, 3, (255,0,0), -1)
+				cv2.rectangle(img, (y1, x1), (y2, x2), (255,0,0), 2)
+
 
 	return img, dimensionList, centroidList, areaList
 

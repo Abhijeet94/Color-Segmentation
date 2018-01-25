@@ -46,7 +46,7 @@ def test():
             # read one test image
             img = cv2.imread(os.path.join(testFolder,filename))
             # Your computations here!
-            maskedImage, bboxImage, barrelDistance, centroidList = doSegmentation(img, table, g.predictWithLookupTable, DATA_FOLDER, COLOR_LIST)
+            maskedImage, bboxImage, barrelDistance, centroidList = doSegmentation(img, table, g.predictWithLookupTable)
             print 'Distance for ' + filename + ': ' + str(barrelDistance)
             print 'Centroids for ' + filename + ': ' + str(centroidList) + '\n'
             cv2.imwrite(os.path.join(segmentedImageFolder, filename), maskedImage)
@@ -58,6 +58,6 @@ def train():
     saveLookupTable(g.train, g.getLookupTable, 'GmmTable', DATA_FOLDER)
 
 if __name__ == "__main__":
-    doSomeTests(DATA_FOLDER, COLOR_LIST)
+    # doSomeTests(DATA_FOLDER, COLOR_LIST)
     # train()
-    # test()
+    test()
