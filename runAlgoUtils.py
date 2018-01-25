@@ -178,14 +178,14 @@ def predictWithModel(model, filePath, predictFunction, DATA_FOLDER, groundTruthA
 def crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 
-	k_range = [2, 3, 4, 5, 6]
+	k_range = [2, 3]
 	fmeasureList = [0] * len(k_range)
 	recallList = [0] * len(k_range)
 	for ki, k in enumerate(k_range):
 		numIterations = 10
 		for it in range(numIterations):
 			training, test = getTrainingTestSplit(fileList)
-			g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures = k)
+			g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures = k, covMethod = 'DiagonalCov')
 			model = g.train(training)
 
 			cumulativeFMeasure = 0
@@ -208,22 +208,6 @@ def crossValidateNumMixtures(DATA_FOLDER, COLOR_LIST):
 	print fmeasureList
 	print recallList
 
-# 2
-# 0.881265483179
-# 0.961660081236
-
-# 3
-# 0.814542589476
-# 0.963764115267
-
-# 4
-# 0.737993912978
-# 0.962659711823
-
-# 5
-# 0.735246303275
-# 0.95209516667
-
 def singleGaussianScore(DATA_FOLDER, COLOR_LIST):
 	COLOR_LIST = [COLOR_LIST[0]]
 	fileList = getAllFilesInFolder(DATA_FOLDER)
@@ -244,9 +228,6 @@ def singleGaussianScore(DATA_FOLDER, COLOR_LIST):
 	print cumulativeFMeasure/count
 	print  cumulativeRecall/count
 
-# 0.702075338927
-# 0.65240721917
-
 def multiGaussianScore(DATA_FOLDER, COLOR_LIST):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 	numIterations = 10
@@ -266,16 +247,6 @@ def multiGaussianScore(DATA_FOLDER, COLOR_LIST):
 	print cumulativeFMeasure/count
 	print  cumulativeRecall/count
 
-# Gaussians
-
-# Y Cr cb
-# 0.88226573548
-# 0.959098633618
-
-# RGB
-# 0.865992640822
-# 0.927456024643
-
 def trainBarrelDistanceModel(DATA_FOLDER):
 	fileList = getAllFilesInFolder(DATA_FOLDER)
 	X = []
@@ -293,15 +264,15 @@ def trainBarrelDistanceModel(DATA_FOLDER):
 	nX = np.hstack((nX, np.ones((nX.shape[0], 1))))
 	nY = np.asarray(Y)
 
-	# fig = plt.figure()
-	# plt.plot(X, Y, 'ro')
-	# # plt.show()
-	# fig.suptitle('Barrel Distance variation with barrel area', fontsize=20)
-	# plt.xlabel('Inverse Area Square', fontsize=18)
-	# plt.ylabel('Barrel Distance', fontsize=16)
-	# fig.savefig('barrelDistance.jpg')
+	fig = plt.figure()
+	plt.plot(X, Y, 'ro')
+	# plt.show()
+	fig.suptitle('Barrel Distance variation with barrel area', fontsize=20)
+	plt.xlabel('Inverse Area Square Root', fontsize=18)
+	plt.ylabel('Barrel Distance', fontsize=16)
+	fig.savefig('barrelDistance.jpg')
 
-	# slope = (1.0/np.matmul(nX.T, nX)) * np.matmul(nX.T, nY)
+	slope = (1.0/np.matmul(nX.T, nX)) * np.matmul(nX.T, nY)
 	slope = np.matmul(np.linalg.inv(np.matmul(nX.T, nX)), np.matmul(nX.T, nY))
 	print slope
 
@@ -353,9 +324,9 @@ def calBarrelDistance(areaList):
 
 def doSomeTests(DATA_FOLDER, COLOR_LIST):
 	# g = GaussianMLE(COLOR_LIST, DATA_FOLDER)
-    # g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures=2, covMethod = 'FullCov')
+    # g = GmmMLE(COLOR_LIST, DATA_FOLDER, numMixtures=2, covMethod = 'DiagonalCov')
 
-    # crossValidatedAlgo(g.train, g.predict, DATA_FOLDER, 'tempModelGmm2.pkl')
+    # crossValidatedAlgo(g.train, g.predict, DATA_FOLDER)#, 'tempModelGmm2.pkl')
 
     # trainAllTestAll(g.train, g.predict, DATA_FOLDER, 'outBbox_Gmm_1')
 
@@ -365,9 +336,9 @@ def doSomeTests(DATA_FOLDER, COLOR_LIST):
     # singleGaussianScore(DATA_FOLDER, COLOR_LIST)
     # multiGaussianScore(DATA_FOLDER, COLOR_LIST)
     # testBarrelDistanceModel(DATA_FOLDER)
-    # trainBarrelDistanceModel(DATA_FOLDER)
+    trainBarrelDistanceModel(DATA_FOLDER)
     # plotLookupTable('GmmTable')
-    plotLabeledPixels(DATA_FOLDER)
+    # plotLabeledPixels(DATA_FOLDER)
 
 ###########################################################################################
 

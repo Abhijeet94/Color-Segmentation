@@ -59,5 +59,5 @@ def train():
 
 if __name__ == "__main__":
     # doSomeTests(DATA_FOLDER, COLOR_LIST)
-    # train()
-    test()
+    train()
+    # test()

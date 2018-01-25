@@ -86,7 +86,7 @@ class GmmMLE:
 
 	def predict(self, model, img):
 		# threshold = -110 #k=3
-		threshold = -15 #k=2
+		threshold = float("-inf")#-15 #k=2
 		img = cv2.cvtColor(img, cv2.COLOR_BGR2YCR_CB)
 
 		bigMat = np.zeros((img.shape[0], img.shape[1], len(model.color)))
@@ -129,7 +129,9 @@ class GmmMLE:
 		return res
 
 	def getLookupTable(self, model):
-		threshold = -110
+		# threshold = -110 #k=3
+		threshold = -15 #k=2
+
 		res = np.transpose(np.indices((256, 256, 256)), (1, 2, 3, 0))
 
 		bigMat = np.zeros((res.shape[0], res.shape[1], res.shape[2], len(model.color)))
